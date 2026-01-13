@@ -1,12 +1,17 @@
+import AppKit
 import SwiftUI
 
 struct SessionDetailSheet: View {
     let session: SessionItem
+    let onClose: (() -> Void)?
     @StateObject private var viewModel: SessionArchiveViewModel
     @State private var selectedEntryId: UUID?
+    @State private var showDeleteConfirmation = false
+    @Environment(\.dismiss) private var dismiss
 
-    init(session: SessionItem) {
+    init(session: SessionItem, onClose: (() -> Void)? = nil) {
         self.session = session
+        self.onClose = onClose
         _viewModel = StateObject(wrappedValue: SessionArchiveViewModel(sessionId: session.id))
     }
 
@@ -26,10 +31,22 @@ struct SessionDetailSheet: View {
                 Text("아직 아카이빙된 대화가 없습니다.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                Spacer()
             }
         }
-        .padding(20)
-        .frame(minWidth: 760, minHeight: 520)
+        .padding(18)
+        .frame(width: 760, height: 540)
+        .background(Color(NSColor.windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: Color.black.opacity(0.15), radius: 16, x: 0, y: 8)
+        .alert("세션을 삭제할까요?", isPresented: $showDeleteConfirmation) {
+            Button("취소", role: .cancel) {}
+            Button("삭제", role: .destructive) {
+                deleteSession()
+            }
+        } message: {
+            Text("이 세션과 대화 기록을 영구히 삭제합니다.")
+        }
         .onAppear {
             if let entry = viewModel.transcript?.entries.last {
                 selectedEntryId = entry.id
@@ -54,6 +71,26 @@ struct SessionDetailSheet: View {
             }
             Spacer()
             SessionStatusBadge(status: session.status)
+            Button(role: .destructive) {
+                showDeleteConfirmation = true
+            } label: {
+                Label("삭제", systemImage: "trash")
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    private func deleteSession() {
+        TranscriptArchiveStore.delete(sessionId: session.id)
+        SessionStore.deleteSession(sessionId: session.id)
+        close()
+    }
+
+    private func close() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
         }
     }
 }

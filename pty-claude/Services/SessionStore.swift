@@ -9,6 +9,7 @@ enum SessionStore {
         let id: String
         let name: String
         let detail: String
+        let location: String?
         let status: SessionRecordStatus
         let updatedAt: TimeInterval
         let lastPrompt: String?
@@ -71,6 +72,7 @@ enum SessionStore {
             id: resolvedId,
             name: projectName,
             detail: detail,
+            location: cwd,
             status: .normal,
             updatedAt: Date().timeIntervalSince1970,
             lastPrompt: nil,
@@ -112,6 +114,7 @@ enum SessionStore {
             id: existing.id,
             name: existing.name,
             detail: existing.detail,
+            location: existing.location,
             status: status,
             updatedAt: Date().timeIntervalSince1970,
             lastPrompt: updatedPrompt,
@@ -145,6 +148,7 @@ enum SessionStore {
             id: existing.id,
             name: existing.name,
             detail: existing.detail,
+            location: existing.location,
             status: existing.status,
             updatedAt: Date().timeIntervalSince1970,
             lastPrompt: updatedPrompt,
@@ -164,5 +168,15 @@ enum SessionStore {
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return compact.isEmpty ? nil : compact
+    }
+
+    static func deleteSession(sessionId: String?) {
+        let trimmedId = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmedId.isEmpty else {
+            return
+        }
+        var sessions = loadSessions()
+        sessions.removeAll { $0.id == trimmedId }
+        saveSessions(sessions)
     }
 }

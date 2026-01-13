@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SessionTranscriptSplitView: View {
@@ -60,6 +61,15 @@ struct SessionTranscriptDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
+                    if selectedEntry.role == .assistant {
+                        Button {
+                            copyToClipboard(selectedEntry.text)
+                        } label: {
+                            Label("복사", systemImage: "doc.on.doc")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
                 }
                 ScrollView {
                     Text(selectedEntry.text)
@@ -111,6 +121,12 @@ struct SessionTranscriptDetailView: View {
         case .unknown:
             return Color.gray
         }
+    }
+
+    private func copyToClipboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
     }
 }
 

@@ -32,6 +32,7 @@ struct ContentView: View {
     @State private var previewError: String?
     @State private var showApplyConfirmation = false
     @AppStorage("ui.useDarkMode") private var useDarkMode = false
+    @State private var selectedSession: SessionItem?
 
     // 텍스트 입력 포커스 관리
     @FocusState private var focusedField: FocusField?
@@ -83,7 +84,7 @@ struct ContentView: View {
                 sessionView
             }
         }
-        .frame(minWidth: 720, minHeight: 520)
+        .frame(minWidth: 850, minHeight: 650)
         .toolbar {
             if selection != .claude {
                 ToolbarItem(placement: .primaryAction) {
@@ -133,6 +134,22 @@ struct ContentView: View {
             .help("Toggle appearance")
             .accessibilityLabel("Toggle appearance")
             .padding(12)
+        }
+        .overlay {
+            if let session = selectedSession {
+                ZStack {
+                    Color.black.opacity(0.2)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            selectedSession = nil
+                        }
+                    SessionDetailSheet(session: session) {
+                        selectedSession = nil
+                    }
+                    .padding(24)
+                }
+                .transition(.opacity)
+            }
         }
     }
 }
@@ -355,7 +372,7 @@ private extension ContentView {
 
     // Session 관리 화면
     var sessionView: some View {
-        SessionView()
+        SessionView(selectedSession: $selectedSession)
     }
 
     // 저장된 값과 임시 값이 다른지 여부

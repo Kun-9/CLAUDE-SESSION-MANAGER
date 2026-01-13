@@ -5,6 +5,7 @@ struct SessionItem: Identifiable {
     let id: String
     let name: String
     let detail: String
+    let location: String?
     let status: SessionStatus
     let updatedText: String
     let lastPrompt: String?
@@ -86,6 +87,7 @@ extension SessionItem {
         id = record.id
         name = record.name
         detail = record.detail
+        location = record.location
         status = SessionStatus(recordStatus: record.status)
         updatedText = SessionItem.relativeUpdateText(from: record.updatedAt)
         lastPrompt = record.lastPrompt
@@ -108,5 +110,26 @@ extension SessionItem {
         }
         let days = hours / 24
         return "\(days)d ago"
+    }
+}
+
+extension SessionItem {
+    var locationPath: String? {
+        let trimmedLocation = location?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmedLocation.isEmpty {
+            return trimmedLocation
+        }
+        let detailTrimmed = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        if detailTrimmed.hasPrefix("/") || detailTrimmed.hasPrefix("~") {
+            return detailTrimmed
+        }
+        return nil
+    }
+
+    var locationTitle: String {
+        guard let locationPath else {
+            return "Unknown Location"
+        }
+        return (locationPath as NSString).lastPathComponent
     }
 }

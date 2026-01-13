@@ -34,6 +34,16 @@ enum TranscriptArchiveStore {
         return legacyTranscript
     }
 
+    static func delete(sessionId: String) {
+        let urls = [archiveURL(for: sessionId), legacyArchiveURL(for: sessionId)]
+        for url in urls {
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                continue
+            }
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
     private static func archiveURL(for sessionId: String) -> URL {
         let filename = hashedFilename(for: sessionId)
         let base = applicationSupportURL()

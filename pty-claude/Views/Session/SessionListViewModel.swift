@@ -26,6 +26,8 @@ final class SessionListViewModel: ObservableObject {
 
     func loadSessions() {
         let records = SessionStore.loadSessions()
-        sessions = records.map(SessionItem.init(record:))
+        sessions = records
+            .map(SessionItem.init(record:))
+            .filter { $0.status != .normal }
     }
 }
