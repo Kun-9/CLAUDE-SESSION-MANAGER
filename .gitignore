@@ -1,0 +1,41 @@
+.DS_Store
+*.swp
+*.tmp
+*.log
+AGENTS.md
+INIT.md
+
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+*.xcbkptlist
+*.xcuserdatad/
+*.xccheckout
+*.xcscmblueprint
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+# App artifacts
+*.app
+*.ipa
+*.dSYM.zip
+*.dSYM
