@@ -35,7 +35,6 @@ struct SessionDetailSheet: View {
             }
         }
         .padding(18)
-        .frame(width: 760, height: 540)
         .background(Color(NSColor.windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: Color.black.opacity(0.15), radius: 16, x: 0, y: 8)

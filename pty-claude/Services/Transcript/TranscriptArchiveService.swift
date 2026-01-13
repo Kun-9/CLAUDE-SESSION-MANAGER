@@ -1,11 +1,13 @@
 import Foundation
 
 enum TranscriptArchiveService {
+    // 아카이브 요약 정보
     struct Summary {
         let lastPrompt: String?
         let lastResponse: String?
     }
 
+    // 훅에서 전달된 transcript_path를 읽어 세션 단위로 아카이빙
     static func archiveTranscript(sessionId: String?, transcriptPath: String?) -> Summary? {
         let trimmedId = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmedId.isEmpty else {
@@ -36,6 +38,7 @@ enum TranscriptArchiveService {
         return summary
     }
 
+    // JSONL 파일을 파싱해 엔트리 목록 생성
     private static func parseTranscript(at path: String) -> [TranscriptEntry]? {
         guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
             return nil
@@ -58,6 +61,7 @@ enum TranscriptArchiveService {
         return entries
     }
 
+    // JSON 객체를 TranscriptEntry로 변환
     private static func buildEntry(from object: Any) -> TranscriptEntry? {
         guard let dict = object as? [String: Any] else {
             return nil
@@ -73,10 +77,12 @@ enum TranscriptArchiveService {
             return nil
         }
 
-        let createdAt = numberValue(dict["created_at"]) ?? numberValue(dict["timestamp"])
+        let createdAt = timestampValue(dict["created_at"])
+            ?? timestampValue(dict["timestamp"])
         return TranscriptEntry(role: role, text: text, createdAt: createdAt)
     }
 
+    // 다양한 포맷에서 텍스트 추출
     private static func extractText(from dict: [String: Any]) -> String? {
         if let content = stringValue(dict["content"]) {
             return content
@@ -101,6 +107,7 @@ enum TranscriptArchiveService {
         return nil
     }
 
+    // 배열 형태의 content를 하나의 문장으로 합치기
     private static func joinContentBlocks(_ content: [Any]) -> String? {
         let parts = content.compactMap { item -> String? in
             if let text = stringValue(item as Any) {
@@ -115,6 +122,7 @@ enum TranscriptArchiveService {
         return joined.isEmpty ? nil : joined
     }
 
+    // 문자열 값 정규화
     private static func stringValue(_ value: Any?) -> String? {
         if let string = value as? String {
             let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -123,6 +131,7 @@ enum TranscriptArchiveService {
         return nil
     }
 
+    // 숫자 기반 타임스탬프 파싱
     private static func numberValue(_ value: Any?) -> TimeInterval? {
         if let number = value as? NSNumber {
             return number.doubleValue
@@ -133,6 +142,43 @@ enum TranscriptArchiveService {
         return nil
     }
 
+    // ISO 8601 문자열까지 포함한 타임스탬프 파싱
+    private static func timestampValue(_ value: Any?) -> TimeInterval? {
+        if let number = numberValue(value) {
+            return number
+        }
+        guard let text = stringValue(value) else {
+            return nil
+        }
+        guard let date = parseISODate(text) else {
+            return nil
+        }
+        return date.timeIntervalSince1970
+    }
+
+    // ISO 8601 포맷 날짜 파싱
+    private static func parseISODate(_ value: String) -> Date? {
+        if let date = isoFormatterWithFractional.date(from: value) {
+            return date
+        }
+        return isoFormatter.date(from: value)
+    }
+
+    // 소수점 초 포함 ISO 8601 포맷터
+    private static let isoFormatterWithFractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    // 일반 ISO 8601 포맷터
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    // 세션 요약 생성
     private static func buildSummary(from entries: [TranscriptEntry]) -> Summary {
         let lastPrompt = entries.last(where: { $0.role == .user })?.text
         let lastResponse = entries.last(where: { $0.role == .assistant })?.text

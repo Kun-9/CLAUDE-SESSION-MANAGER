@@ -1,6 +1,15 @@
 import AppKit
+import Foundation
 import SwiftUI
 
+// 타임스탬프 표시용 포맷터 (가독성 우선)
+private let transcriptTimestampFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy.MM.dd HH:mm"
+    return formatter
+}()
+
+// 좌측 목록 + 우측 상세 구성
 struct SessionTranscriptSplitView: View {
     let entries: [TranscriptEntry]
     @Binding var selectedEntryId: UUID?
@@ -21,6 +30,7 @@ struct SessionTranscriptSplitView: View {
     }
 }
 
+// 좌측 대화 목록 영역
 struct SessionTranscriptListView: View {
     let entries: [TranscriptEntry]
     @Binding var selectedEntryId: UUID?
@@ -46,6 +56,7 @@ struct SessionTranscriptListView: View {
     }
 }
 
+// 우측 상세 텍스트 영역
 struct SessionTranscriptDetailView: View {
     let entries: [TranscriptEntry]
     @Binding var selectedEntryId: UUID?
@@ -55,27 +66,23 @@ struct SessionTranscriptDetailView: View {
             if let selectedEntry = selectedEntry {
                 HStack {
                     SessionRoleBadge(role: selectedEntry.role)
-                    if let timestampText = timestampText(for: selectedEntry) {
-                        Text(timestampText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                     Spacer()
-                    if selectedEntry.role == .assistant {
+                    if selectedEntry.role == .assistant || selectedEntry.role == .user {
+                        // 질문/응답 복사 아이콘 버튼
                         Button {
                             copyToClipboard(selectedEntry.text)
                         } label: {
-                            Label("복사", systemImage: "doc.on.doc")
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 12, weight: .semibold))
+                                .padding(6)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                        .buttonStyle(.plain)
+                        .help("복사")
+                        .accessibilityLabel("복사")
                     }
                 }
                 ScrollView {
-                    Text(selectedEntry.text)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                        .textSelection(.enabled)
+                    detailBody(for: selectedEntry)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
                         .background(
@@ -99,17 +106,6 @@ struct SessionTranscriptDetailView: View {
         return entries.first { $0.id == selectedEntryId }
     }
 
-    private func timestampText(for entry: TranscriptEntry) -> String? {
-        guard let createdAt = entry.createdAt else {
-            return nil
-        }
-        let date = Date(timeIntervalSince1970: createdAt)
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
-
     private func roleColor(for role: TranscriptRole) -> Color {
         switch role {
         case .user:
@@ -123,6 +119,21 @@ struct SessionTranscriptDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private func detailBody(for entry: TranscriptEntry) -> some View {
+        if entry.role == .assistant {
+            // 응답은 마크다운 렌더링
+            MarkdownMessageView(text: entry.text)
+        } else {
+            // 나머지는 일반 텍스트 렌더링
+            Text(entry.text)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+        }
+    }
+
+    // 클립보드 복사
     private func copyToClipboard(_ text: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -130,15 +141,17 @@ struct SessionTranscriptDetailView: View {
     }
 }
 
+// 좌측 목록의 요약 카드
 struct SessionTranscriptCard: View {
     let entry: TranscriptEntry
     let isSelected: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 6) {
                 SessionRoleBadge(role: entry.role)
                 Spacer()
+                // 배지 오른쪽 상단에 시간 표시
                 if let timestampText {
                     Text(timestampText)
                         .font(.caption2)
@@ -159,18 +172,17 @@ struct SessionTranscriptCard: View {
         )
     }
 
+    // 목록 카드 타임스탬프 생성
     private var timestampText: String? {
         guard let createdAt = entry.createdAt else {
             return nil
         }
         let date = Date(timeIntervalSince1970: createdAt)
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        return transcriptTimestampFormatter.string(from: date)
     }
 }
 
+// 역할 라벨 배지
 struct SessionRoleBadge: View {
     let role: TranscriptRole
 

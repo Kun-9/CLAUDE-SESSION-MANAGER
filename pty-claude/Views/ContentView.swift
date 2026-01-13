@@ -86,7 +86,7 @@ struct ContentView: View {
         }
         .frame(minWidth: 850, minHeight: 650)
         .toolbar {
-            if selection != .claude {
+            if selection != .claude && selection != .session {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         saveDrafts()
@@ -137,16 +137,20 @@ struct ContentView: View {
         }
         .overlay {
             if let session = selectedSession {
-                ZStack {
-                    Color.black.opacity(0.2)
-                        .ignoresSafeArea()
-                        .onTapGesture {
+                GeometryReader { proxy in
+                    let width = min(max(proxy.size.width * 0.8, 640), proxy.size.width - 40)
+                    let height = min(max(proxy.size.height * 0.8, 460), proxy.size.height - 40)
+                    ZStack {
+                        Color.black.opacity(0.2)
+                            .ignoresSafeArea()
+                            .onTapGesture {
+                                selectedSession = nil
+                            }
+                        SessionDetailSheet(session: session) {
                             selectedSession = nil
                         }
-                    SessionDetailSheet(session: session) {
-                        selectedSession = nil
+                        .frame(width: width, height: height)
                     }
-                    .padding(24)
                 }
                 .transition(.opacity)
             }

@@ -66,7 +66,9 @@ enum HookRunner {
 
     // Stop 이벤트 처리
     private static func handleStop(_ event: HookEvent) {
+        // 응답 완료 상태로 전환
         SessionStore.updateSessionStatus(sessionId: event.session_id, status: .finished)
+        // transcript_path 기반 아카이빙
         let summary = TranscriptArchiveService.archiveTranscript(
             sessionId: event.session_id,
             transcriptPath: event.transcript_path

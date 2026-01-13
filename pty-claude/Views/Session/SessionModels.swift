@@ -82,6 +82,7 @@ extension SessionStatus {
     }
 }
 
+// 세션 위치 정보 보정 유틸
 extension SessionItem {
     init(record: SessionStore.SessionRecord) {
         id = record.id
