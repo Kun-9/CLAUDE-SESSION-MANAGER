@@ -68,6 +68,11 @@ struct SessionDetailSheet: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if let archiveSizeText = viewModel.archiveSizeText {
+                    Text("아카이브 \(archiveSizeText)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             SessionStatusBadge(status: session.status)

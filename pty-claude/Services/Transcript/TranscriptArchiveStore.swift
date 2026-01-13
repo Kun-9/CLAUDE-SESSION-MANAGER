@@ -34,6 +34,16 @@ enum TranscriptArchiveStore {
         return legacyTranscript
     }
 
+    static func archiveSize(sessionId: String) -> Int64? {
+        guard let url = archiveFileURL(sessionId: sessionId) else {
+            return nil
+        }
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+            return nil
+        }
+        return (attributes[.size] as? NSNumber)?.int64Value
+    }
+
     static func delete(sessionId: String) {
         let urls = [archiveURL(for: sessionId), legacyArchiveURL(for: sessionId)]
         for url in urls {
@@ -58,6 +68,18 @@ enum TranscriptArchiveStore {
         return base
             .appendingPathComponent(archiveFolderName, isDirectory: true)
             .appendingPathComponent("\(filename).json")
+    }
+
+    private static func archiveFileURL(sessionId: String) -> URL? {
+        let current = archiveURL(for: sessionId)
+        if FileManager.default.fileExists(atPath: current.path) {
+            return current
+        }
+        let legacy = legacyArchiveURL(for: sessionId)
+        if FileManager.default.fileExists(atPath: legacy.path) {
+            return legacy
+        }
+        return nil
     }
 
     private static func applicationSupportURL() -> URL {
