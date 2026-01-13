@@ -8,6 +8,7 @@ struct SessionItem: Identifiable {
     let status: SessionStatus
     let updatedText: String
     let lastPrompt: String?
+    let lastResponse: String?
 }
 
 enum SessionStatus: String {
@@ -24,7 +25,7 @@ enum SessionStatus: String {
         case .finished:
             return "완료"
         case .permission:
-            return "권한/선택 요청"
+            return "권한/선택 대기중"
         case .normal:
             return "대기"
         case .ended:
@@ -88,6 +89,7 @@ extension SessionItem {
         status = SessionStatus(recordStatus: record.status)
         updatedText = SessionItem.relativeUpdateText(from: record.updatedAt)
         lastPrompt = record.lastPrompt
+        lastResponse = record.lastResponse
     }
 
     static func relativeUpdateText(from timestamp: TimeInterval) -> String {

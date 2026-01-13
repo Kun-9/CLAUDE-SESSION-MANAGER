@@ -12,6 +12,7 @@ enum SessionStore {
         let status: SessionRecordStatus
         let updatedAt: TimeInterval
         let lastPrompt: String?
+        let lastResponse: String?
     }
 
     enum SessionRecordStatus: String, Codable {
@@ -72,7 +73,8 @@ enum SessionStore {
             detail: detail,
             status: .normal,
             updatedAt: Date().timeIntervalSince1970,
-            lastPrompt: nil
+            lastPrompt: nil,
+            lastResponse: nil
         )
 
         var sessions = loadSessions()
@@ -100,17 +102,56 @@ enum SessionStore {
 
         let existing = sessions[index]
         let updatedPrompt = normalizedPrompt(prompt) ?? existing.lastPrompt
+        let updatedResponse: String?
+        if status == .running {
+            updatedResponse = nil
+        } else {
+            updatedResponse = existing.lastResponse
+        }
         let updated = SessionRecord(
             id: existing.id,
             name: existing.name,
             detail: existing.detail,
             status: status,
             updatedAt: Date().timeIntervalSince1970,
-            lastPrompt: updatedPrompt
+            lastPrompt: updatedPrompt,
+            lastResponse: updatedResponse
         )
 
         sessions.remove(at: index)
         sessions.insert(updated, at: 0)
+        saveSessions(sessions)
+    }
+
+    static func updateSessionArchive(
+        sessionId: String?,
+        lastPrompt: String?,
+        lastResponse: String?
+    ) {
+        let trimmedId = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmedId.isEmpty else {
+            return
+        }
+
+        var sessions = loadSessions()
+        guard let index = sessions.firstIndex(where: { $0.id == trimmedId }) else {
+            return
+        }
+
+        let existing = sessions[index]
+        let updatedPrompt = normalizedPrompt(lastPrompt) ?? existing.lastPrompt
+        let updatedResponse = normalizedPrompt(lastResponse) ?? existing.lastResponse
+        let updated = SessionRecord(
+            id: existing.id,
+            name: existing.name,
+            detail: existing.detail,
+            status: existing.status,
+            updatedAt: Date().timeIntervalSince1970,
+            lastPrompt: updatedPrompt,
+            lastResponse: updatedResponse
+        )
+
+        sessions[index] = updated
         saveSessions(sessions)
     }
 

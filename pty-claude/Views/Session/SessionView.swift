@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SessionView: View {
     @StateObject private var viewModel = SessionListViewModel()
+    @State private var selectedSession: SessionItem?
 
     var body: some View {
         ScrollView {
@@ -13,11 +14,19 @@ struct SessionView: View {
 
                 LazyVStack(spacing: 12) {
                     ForEach(viewModel.sessions) { session in
-                        SessionCardView(session: session)
+                        Button {
+                            selectedSession = session
+                        } label: {
+                            SessionCardView(session: session)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
             .padding(24)
+        }
+        .sheet(item: $selectedSession) { session in
+            SessionDetailSheet(session: session)
         }
     }
 }

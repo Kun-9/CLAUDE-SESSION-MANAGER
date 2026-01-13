@@ -7,6 +7,7 @@ struct HookEvent: Decodable {
     let cwd: String?
     let session_id: String?
     let prompt: String?
+    let transcript_path: String?
 }
 
 enum HookRunner {
@@ -66,12 +67,24 @@ enum HookRunner {
     // Stop 이벤트 처리
     private static func handleStop(_ event: HookEvent) {
         SessionStore.updateSessionStatus(sessionId: event.session_id, status: .finished)
+        let summary = TranscriptArchiveService.archiveTranscript(
+            sessionId: event.session_id,
+            transcriptPath: event.transcript_path
+        )
+        if let summary {
+            SessionStore.updateSessionArchive(
+                sessionId: event.session_id,
+                lastPrompt: summary.lastPrompt,
+                lastResponse: summary.lastResponse
+            )
+        }
         guard SettingsStore.stopEnabled() else { return }
         notify(message: "✅ 응답이 완료되었습니다.", cwd: event.cwd, sessionId: event.session_id)
     }
 
     // PermissionRequest 이벤트 처리
     private static func handlePermission(_ event: HookEvent) {
+        SessionStore.updateSessionStatus(sessionId: event.session_id, status: .permission)
         guard SettingsStore.permissionEnabled() else { return }
         let toolName = event.tool_name ?? "Unknown"
         notify(message: "⚠️ 권한 요청: \(toolName)", cwd: event.cwd, sessionId: event.session_id)

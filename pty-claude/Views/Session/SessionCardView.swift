@@ -18,12 +18,12 @@ struct SessionCardView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                if let lastPrompt = session.lastPrompt {
-                    Text(lastPrompt)
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                if session.lastPrompt != nil || session.lastResponse != nil {
+                    SessionSummaryView(
+                        prompt: session.lastPrompt,
+                        response: session.lastResponse,
+                        maxResponseCharacters: 60
+                    )
                 }
                 Text("Updated \(session.updatedText)")
                     .font(.caption)
