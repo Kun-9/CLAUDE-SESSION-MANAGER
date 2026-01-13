@@ -65,6 +65,8 @@ struct ContentView: View {
                         .tag(SidebarItem.sound)
                     Label("Claude", systemImage: "sparkles")
                         .tag(SidebarItem.claude)
+                    Label("Session", systemImage: "rectangle.stack")
+                        .tag(SidebarItem.session)
                 }
             }
             .listStyle(.sidebar)
@@ -77,6 +79,8 @@ struct ContentView: View {
                 soundView
             case .claude:
                 claudeView
+            case .session:
+                sessionView
             }
         }
         .frame(minWidth: 720, minHeight: 520)
@@ -141,6 +145,7 @@ private enum SidebarItem: Hashable {
     case hooks
     case sound
     case claude
+    case session
 }
 
 private extension ContentView {
@@ -148,7 +153,7 @@ private extension ContentView {
     var hooksView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                header(title: "Hooks", subtitle: "Choose which events trigger notifications.")
+                SectionHeaderView(title: "Hooks", subtitle: "Choose which events trigger notifications.")
 
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("PreToolUse", isOn: $draftPreToolUseEnabled)
@@ -191,7 +196,7 @@ private extension ContentView {
                     .labelsHidden()
 
                 VStack(alignment: .leading, spacing: 20) {
-                    header(title: "Sound", subtitle: "Global notification sound settings.")
+                    SectionHeaderView(title: "Sound", subtitle: "Global notification sound settings.")
 
                     VStack(alignment: .leading, spacing: 12) {
                         VStack(alignment: .leading, spacing: 8) {
@@ -247,7 +252,7 @@ private extension ContentView {
     var claudeView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                header(title: "Claude", subtitle: "Update Claude hooks to call this app.")
+                SectionHeaderView(title: "Claude", subtitle: "Update Claude hooks to call this app.")
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Hook command")
@@ -304,6 +309,13 @@ private extension ContentView {
                                 .buttonStyle(.bordered)
                                 .disabled(true)
                         }
+
+                        Button("Test") {
+                            requestHookTest()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(currentHookCommand() == nil)
+                        .help("Send hook test")
                     }
 
                     Text(claudeStatus)
@@ -341,15 +353,9 @@ private extension ContentView {
         .simultaneousGesture(TapGesture().onEnded { dismissFocus() })
     }
 
-    // 화면 상단 타이틀/서브타이틀 공통 구성
-    func header(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.title2.weight(.semibold))
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
+    // Session 관리 화면
+    var sessionView: some View {
+        SessionView()
     }
 
     // 저장된 값과 임시 값이 다른지 여부
@@ -436,6 +442,107 @@ private extension ContentView {
         claudeCanApply = ClaudeSettingsService.hooksNeedUpdate(command: command)
     }
 
+    func requestHookTest() {
+        guard let command = currentHookCommand() else {
+            claudeStatus = "Unable to resolve the app executable path."
+            return
+        }
+
+        let eventName = hookTestEventName()
+        let toolName = hookTestToolName()
+        let cwd = hookTestCwd()
+
+        claudeStatus = "Sending hook test..."
+        DispatchQueue.global(qos: .userInitiated).async {
+            let status = runHookTest(
+                command: command,
+                eventName: eventName,
+                toolName: toolName,
+                cwd: cwd,
+                sessionId: "hook-test"
+            )
+            DispatchQueue.main.async {
+                claudeStatus = status
+            }
+        }
+    }
+
+    func hookTestEventName() -> String {
+        if storedPreToolUseEnabled {
+            return "PreToolUse"
+        }
+        if storedStopEnabled {
+            return "Stop"
+        }
+        if storedPermissionEnabled {
+            return "PermissionRequest"
+        }
+        return "PreToolUse"
+    }
+
+    func hookTestToolName() -> String {
+        let tools = storedPreToolUseTools
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let firstTool = tools.first { !$0.isEmpty }
+        return firstTool ?? "AskUserQuestion"
+    }
+
+    func hookTestCwd() -> String {
+        let current = FileManager.default.currentDirectoryPath
+        if current == "/" {
+            return FileManager.default.homeDirectoryForCurrentUser.path
+        }
+        return current
+    }
+
+    func runHookTest(
+        command: String,
+        eventName: String,
+        toolName: String,
+        cwd: String,
+        sessionId: String?
+    ) -> String {
+        var payload: [String: Any] = [
+            "hook_event_name": eventName,
+            "tool_name": toolName,
+            "cwd": cwd,
+        ]
+        if let sessionId, !sessionId.isEmpty {
+            payload["session_id"] = sessionId
+        }
+
+        do {
+            let data = try JSONSerialization.data(withJSONObject: payload, options: [])
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: command)
+            let inputPipe = Pipe()
+            let outputPipe = Pipe()
+            let errorPipe = Pipe()
+            process.standardInput = inputPipe
+            process.standardOutput = outputPipe
+            process.standardError = errorPipe
+            try process.run()
+            inputPipe.fileHandleForWriting.write(data)
+            inputPipe.fileHandleForWriting.closeFile()
+            process.waitUntilExit()
+
+            if process.terminationStatus == 0 {
+                return "Hook test sent (\(eventName))."
+            }
+
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorText = String(data: errorData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if let errorText, !errorText.isEmpty {
+                return "Hook test failed: \(errorText)"
+            }
+            return "Hook test failed with status \(process.terminationStatus)."
+        } catch {
+            return "Failed to run hook test: \(error.localizedDescription)"
+        }
+    }
 }
 
 // 텍스트필드 포커스 식별자

@@ -6,6 +6,7 @@ struct HookEvent: Decodable {
     let tool_name: String?
     let cwd: String?
     let session_id: String?
+    let prompt: String?
 }
 
 enum HookRunner {
@@ -23,9 +24,17 @@ enum HookRunner {
             handleStop(event)
         case "PermissionRequest":
             handlePermission(event)
+        case "SessionStart":
+            handleSessionStart(event)
+        case "UserPromptSubmit":
+            handleUserPromptSubmit(event)
+        case "SessionEnd":
+            handleSessionEnd(event)
         default:
             break
         }
+
+        SessionStore.notifySessionsUpdated()
     }
 
     // stdin JSON 디코딩
@@ -56,6 +65,7 @@ enum HookRunner {
 
     // Stop 이벤트 처리
     private static func handleStop(_ event: HookEvent) {
+        SessionStore.updateSessionStatus(sessionId: event.session_id, status: .finished)
         guard SettingsStore.stopEnabled() else { return }
         notify(message: "✅ 응답이 완료되었습니다.", cwd: event.cwd, sessionId: event.session_id)
     }
@@ -65,6 +75,22 @@ enum HookRunner {
         guard SettingsStore.permissionEnabled() else { return }
         let toolName = event.tool_name ?? "Unknown"
         notify(message: "⚠️ 권한 요청: \(toolName)", cwd: event.cwd, sessionId: event.session_id)
+    }
+
+    private static func handleSessionStart(_ event: HookEvent) {
+        SessionStore.addSessionStart(sessionId: event.session_id, cwd: event.cwd)
+    }
+
+    private static func handleUserPromptSubmit(_ event: HookEvent) {
+        SessionStore.updateSessionStatus(
+            sessionId: event.session_id,
+            status: .running,
+            prompt: event.prompt
+        )
+    }
+
+    private static func handleSessionEnd(_ event: HookEvent) {
+        SessionStore.updateSessionStatus(sessionId: event.session_id, status: .ended)
     }
 
     // 허용 도구 목록 기반 필터링

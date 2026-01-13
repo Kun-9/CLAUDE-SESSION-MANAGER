@@ -146,6 +146,9 @@ enum ClaudeSettingsService {
             "PreToolUse": hookEntry,
             "Stop": hookEntry,
             "PermissionRequest": hookEntry,
+            "SessionStart": hookEntry,
+            "SessionEnd": hookEntry,
+            "UserPromptSubmit": hookEntry,
         ]
     }
 
