@@ -7,6 +7,7 @@ struct SessionDetailSheet: View {
     @StateObject private var viewModel: SessionArchiveViewModel
     @State private var selectedEntryId: UUID?
     @State private var showDeleteConfirmation = false
+    @State private var showFullTranscript = false
     @Environment(\.dismiss) private var dismiss
 
     init(session: SessionItem, onClose: (() -> Void)? = nil) {
@@ -20,9 +21,14 @@ struct SessionDetailSheet: View {
             header
             Divider()
             if let transcript = viewModel.transcript, !transcript.entries.isEmpty {
+                let filteredEntries = TranscriptFilter.filteredEntries(
+                    transcript.entries,
+                    showFullTranscript: showFullTranscript
+                )
                 SessionTranscriptSplitView(
-                    entries: transcript.entries,
-                    selectedEntryId: $selectedEntryId
+                    entries: filteredEntries,
+                    selectedEntryId: $selectedEntryId,
+                    showFullTranscript: $showFullTranscript
                 )
             } else {
                 if session.lastPrompt != nil || session.lastResponse != nil {
@@ -50,6 +56,9 @@ struct SessionDetailSheet: View {
             if let entry = viewModel.transcript?.entries.last {
                 selectedEntryId = entry.id
             }
+        }
+        .onExitCommand {
+            close()
         }
         .onChange(of: viewModel.transcript?.entries.count) { _, _ in
             if selectedEntryId == nil, let entry = viewModel.transcript?.entries.last {

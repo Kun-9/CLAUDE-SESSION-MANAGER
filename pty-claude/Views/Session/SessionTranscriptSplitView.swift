@@ -13,17 +13,20 @@ private let transcriptTimestampFormatter: DateFormatter = {
 struct SessionTranscriptSplitView: View {
     let entries: [TranscriptEntry]
     @Binding var selectedEntryId: UUID?
+    @Binding var showFullTranscript: Bool
 
     var body: some View {
         HStack(spacing: 16) {
             SessionTranscriptListView(
                 entries: entries,
-                selectedEntryId: $selectedEntryId
+                selectedEntryId: $selectedEntryId,
+                showFullTranscript: $showFullTranscript
             )
             Divider()
             SessionTranscriptDetailView(
                 entries: entries,
-                selectedEntryId: $selectedEntryId
+                selectedEntryId: $selectedEntryId,
+                showFullTranscript: showFullTranscript
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -34,17 +37,23 @@ struct SessionTranscriptSplitView: View {
 struct SessionTranscriptListView: View {
     let entries: [TranscriptEntry]
     @Binding var selectedEntryId: UUID?
+    @Binding var showFullTranscript: Bool
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 10) {
+                Toggle("상세보기", isOn: $showFullTranscript)
+                    .toggleStyle(.switch)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 4)
                 ForEach(entries) { entry in
                     Button {
                         selectedEntryId = entry.id
                     } label: {
                         SessionTranscriptCard(
                             entry: entry,
-                            isSelected: entry.id == selectedEntryId
+                            isSelected: entry.id == selectedEntryId,
+                            showFullTranscript: showFullTranscript
                         )
                     }
                     .buttonStyle(.plain)
@@ -52,6 +61,7 @@ struct SessionTranscriptListView: View {
             }
             .padding(.vertical, 4)
         }
+        .scrollIndicators(.never)
         .frame(minWidth: 260, idealWidth: 280, maxWidth: 320)
     }
 }
@@ -60,12 +70,15 @@ struct SessionTranscriptListView: View {
 struct SessionTranscriptDetailView: View {
     let entries: [TranscriptEntry]
     @Binding var selectedEntryId: UUID?
+    let showFullTranscript: Bool
+    @EnvironmentObject private var toastCenter: ToastCenter
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let selectedEntry = selectedEntry {
+                let badgeInfo = roleBadgeInfo(for: selectedEntry, showFullTranscript: showFullTranscript)
                 HStack {
-                    SessionRoleBadge(role: selectedEntry.role)
+                    SessionRoleBadge(label: badgeInfo.label, color: badgeInfo.color)
                     Spacer()
                     if selectedEntry.role == .assistant || selectedEntry.role == .user {
                         // 질문/응답 복사 아이콘 버튼
@@ -138,6 +151,7 @@ struct SessionTranscriptDetailView: View {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        toastCenter.show("클립보드에 복사됨")
     }
 }
 
@@ -145,11 +159,13 @@ struct SessionTranscriptDetailView: View {
 struct SessionTranscriptCard: View {
     let entry: TranscriptEntry
     let isSelected: Bool
+    let showFullTranscript: Bool
 
     var body: some View {
+        let badgeInfo = roleBadgeInfo(for: entry, showFullTranscript: showFullTranscript)
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 6) {
-                SessionRoleBadge(role: entry.role)
+                SessionRoleBadge(label: badgeInfo.label, color: badgeInfo.color)
                 Spacer()
                 // 배지 오른쪽 상단에 시간 표시
                 if let timestampText {
@@ -170,6 +186,15 @@ struct SessionTranscriptCard: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(isSelected ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.04))
         )
+        .hoverCardStyle(
+            cornerRadius: 12,
+            baseStrokeOpacity: 0.04,
+            hoverStrokeOpacity: 0.12,
+            baseShadowOpacity: 0.04,
+            hoverShadowOpacity: 0.1,
+            shadowRadius: 6,
+            shadowYOffset: 3
+        )
     }
 
     // 목록 카드 타임스탬프 생성
@@ -184,43 +209,49 @@ struct SessionTranscriptCard: View {
 
 // 역할 라벨 배지
 struct SessionRoleBadge: View {
-    let role: TranscriptRole
+    let label: String
+    let color: Color
+
+    init(role: TranscriptRole) {
+        let info = roleBadgeInfo(for: role)
+        self.label = info.label
+        self.color = info.color
+    }
+
+    init(label: String, color: Color) {
+        self.label = label
+        self.color = color
+    }
 
     var body: some View {
-        Text(roleLabel)
+        Text(label)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(roleColor)
+            .foregroundStyle(color)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(
                 Capsule(style: .continuous)
-                    .fill(roleColor.opacity(0.12))
+                    .fill(color.opacity(0.12))
             )
     }
+}
 
-    private var roleLabel: String {
-        switch role {
-        case .user:
-            return "User"
-        case .assistant:
-            return "Assistant"
-        case .system:
-            return "System"
-        case .unknown:
-            return "Unknown"
-        }
+private func roleBadgeInfo(for entry: TranscriptEntry, showFullTranscript: Bool) -> (label: String, color: Color) {
+    if showFullTranscript, entry.role == .user, !TranscriptFilter.isDirectUserInput(entry) {
+        return (label: "Detail", color: Color.orange)
     }
+    return roleBadgeInfo(for: entry.role)
+}
 
-    private var roleColor: Color {
-        switch role {
-        case .user:
-            return Color.blue
-        case .assistant:
-            return Color.green
-        case .system:
-            return Color.gray
-        case .unknown:
-            return Color.gray
-        }
+private func roleBadgeInfo(for role: TranscriptRole) -> (label: String, color: Color) {
+    switch role {
+    case .user:
+        return (label: "User", color: Color.blue)
+    case .assistant:
+        return (label: "Assistant", color: Color.green)
+    case .system:
+        return (label: "System", color: Color.gray)
+    case .unknown:
+        return (label: "Unknown", color: Color.gray)
     }
 }

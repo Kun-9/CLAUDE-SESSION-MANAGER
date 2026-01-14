@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -163,17 +164,40 @@ private struct MarkdownTextBlockView: View {
 // 코드 블록 전용 렌더링
 private struct MarkdownCodeBlockView: View {
     let code: String
+    @EnvironmentObject private var toastCenter: ToastCenter
 
     var body: some View {
-        ScrollView(.horizontal) {
+        ZStack(alignment: .topTrailing) {
             Text(code)
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(nil)
                 .padding(10)
+                .padding(.trailing, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                copyToClipboard(code)
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 12, weight: .semibold))
+                    .padding(6)
+            }
+            .buttonStyle(.plain)
+            .padding(6)
+            .help("복사")
+            .accessibilityLabel("복사")
         }
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.primary.opacity(0.06))
         )
+    }
+
+    private func copyToClipboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        toastCenter.show("클립보드에 복사됨")
     }
 }
