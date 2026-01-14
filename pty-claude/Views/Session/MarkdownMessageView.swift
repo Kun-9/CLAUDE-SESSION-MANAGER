@@ -66,11 +66,11 @@ private struct MarkdownTextBlockView: View {
                 .foregroundStyle(.primary)
         } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
             let content = String(trimmed.dropFirst(2))
-            (Text("• ") + MarkdownParser.parseInlineMarkdown(content))
+            Text("• \(MarkdownParser.parseInlineMarkdown(content))")
                 .font(.body)
                 .foregroundStyle(.primary)
         } else if let ordered = MarkdownParser.parseOrderedListItem(from: trimmed) {
-            (Text("\(ordered.number). ") + MarkdownParser.parseInlineMarkdown(ordered.content))
+            Text("\(ordered.number). \(MarkdownParser.parseInlineMarkdown(ordered.content))")
                 .font(.body)
                 .foregroundStyle(.primary)
         } else {

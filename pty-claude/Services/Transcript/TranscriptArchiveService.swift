@@ -26,7 +26,6 @@ enum TranscriptArchiveService {
             return nil
         }
 
-        let summary = buildSummary(from: entries)
         let mergedEntries = mergeWithExisting(sessionId: trimmedId, newEntries: entries)
         let mergedSummary = buildSummary(from: mergedEntries)
         let transcript = SessionTranscript(
