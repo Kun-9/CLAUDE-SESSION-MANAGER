@@ -9,6 +9,7 @@ import SwiftUI
 struct SessionView: View {
     @StateObject private var viewModel = SessionListViewModel()
     @Binding var selectedSession: SessionItem?
+    @State private var sessionToDelete: SessionItem?
 
     var body: some View {
         ScrollView {
@@ -29,6 +30,20 @@ struct SessionView: View {
                 sessionContent
             }
             .padding(24)
+        }
+        .confirmationDialog(
+            "세션 삭제",
+            isPresented: .init(
+                get: { sessionToDelete != nil },
+                set: { if !$0 { sessionToDelete = nil } }
+            ),
+            presenting: sessionToDelete
+        ) { session in
+            Button("삭제", role: .destructive) {
+                viewModel.deleteSession(session)
+            }
+        } message: { session in
+            Text("'\(session.name)' 세션을 삭제하시겠습니까?\n아카이브된 대화 기록도 함께 삭제됩니다.")
         }
     }
 
@@ -63,9 +78,11 @@ struct SessionView: View {
 
     @ViewBuilder
     private var allGridView: some View {
-        SessionGridView(sessions: viewModel.sessions) { session in
-            selectedSession = session
-        }
+        SessionGridView(
+            sessions: viewModel.sessions,
+            onSelect: { selectedSession = $0 },
+            onDelete: { sessionToDelete = $0 }
+        )
     }
 
     @ViewBuilder
@@ -101,7 +118,8 @@ struct SessionView: View {
             sections: viewModel.sessionSections,
             collapsedIds: viewModel.collapsedSectionIds,
             onToggleSection: { viewModel.toggleSection($0) },
-            onSelectSession: { selectedSession = $0 }
+            onSelectSession: { selectedSession = $0 },
+            onDeleteSession: { sessionToDelete = $0 }
         )
     }
 
@@ -113,6 +131,13 @@ struct SessionView: View {
             SessionCardView(session: session, style: .full)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) {
+                sessionToDelete = session
+            } label: {
+                Label("삭제", systemImage: "trash")
+            }
+        }
     }
 }
 

@@ -13,6 +13,8 @@ enum SessionStore {
         let location: String?
         let status: SessionRecordStatus
         let updatedAt: TimeInterval
+        let startedAt: TimeInterval?  // 작업 시작 시간 (running 상태일 때만 유효)
+        let duration: TimeInterval?   // 마지막 작업 소요 시간 (완료 시 계산)
         let lastPrompt: String?
         let lastResponse: String?
     }
@@ -82,6 +84,8 @@ enum SessionStore {
             location: cwd,
             status: .normal,
             updatedAt: Date().timeIntervalSince1970,
+            startedAt: nil,
+            duration: nil,
             lastPrompt: nil,
             lastResponse: nil
         )
@@ -112,12 +116,25 @@ enum SessionStore {
 
         // 기존 레코드 갱신
         let existing = sessions[index]
+        let now = Date().timeIntervalSince1970
         let updatedPrompt = normalizedPrompt(prompt) ?? existing.lastPrompt
         let updatedResponse: String?
+        let updatedStartedAt: TimeInterval?
+        let updatedDuration: TimeInterval?
         if status == .running {
             updatedResponse = nil
+            // running 상태 진입 시 startedAt 설정 (이미 running이면 유지)
+            updatedStartedAt = existing.status == .running ? existing.startedAt : now
+            updatedDuration = existing.duration
         } else {
             updatedResponse = existing.lastResponse
+            // 완료 시 duration 계산 (startedAt이 있으면)
+            if let startedAt = existing.startedAt {
+                updatedDuration = now - startedAt
+            } else {
+                updatedDuration = existing.duration
+            }
+            updatedStartedAt = nil
         }
         // 기존 레코드 갱신
         let updated = SessionRecord(
@@ -126,7 +143,9 @@ enum SessionStore {
             detail: existing.detail,
             location: existing.location,
             status: status,
-            updatedAt: Date().timeIntervalSince1970,
+            updatedAt: now,
+            startedAt: updatedStartedAt,
+            duration: updatedDuration,
             lastPrompt: updatedPrompt,
             lastResponse: updatedResponse
         )
@@ -163,6 +182,8 @@ enum SessionStore {
             location: existing.location,
             status: existing.status,
             updatedAt: Date().timeIntervalSince1970,
+            startedAt: existing.startedAt,
+            duration: existing.duration,
             lastPrompt: updatedPrompt,
             lastResponse: updatedResponse
         )

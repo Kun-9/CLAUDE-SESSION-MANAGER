@@ -191,10 +191,11 @@ enum TranscriptArchiveService {
         return formatter
     }()
 
-    // 세션 요약 생성
+    // 세션 요약 생성 (필터링된 항목 기준)
     private static func buildSummary(from entries: [TranscriptEntry]) -> Summary {
-        let lastPrompt = entries.last(where: { $0.role == .user })?.text
-        let lastResponse = entries.last(where: { $0.role == .assistant })?.text
+        let filtered = TranscriptFilter.filteredEntries(entries, showFullTranscript: false)
+        let lastPrompt = filtered.last(where: { $0.role == .user })?.text
+        let lastResponse = filtered.last(where: { $0.role == .assistant })?.text
         return Summary(
             lastPrompt: lastPrompt,
             lastResponse: lastResponse

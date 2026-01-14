@@ -4,6 +4,7 @@
 // - compact: 격자용 컴팩트 카드 (세션명, 상태, 시간만 표시)
 
 import AppKit
+import Combine
 import SwiftUI
 
 /// 세션 카드 표시 스타일
@@ -21,6 +22,14 @@ struct SessionCardView: View {
     init(session: SessionItem, style: SessionCardStyle = .full) {
         self.session = session
         self.style = style
+    }
+
+    /// 소요 시간 포맷 (분:초)
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds))
+        let mins = total / 60
+        let secs = total % 60
+        return String(format: "%d:%02d", mins, secs)
     }
 
     var body: some View {
@@ -59,9 +68,22 @@ struct SessionCardView: View {
                         alignment: .leading
                     )
                 }
-                Text("Updated \(session.updatedText)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if session.status == .running, let startedAt = session.startedAt {
+                    ElapsedTimeText(startedAt: startedAt)
+                        .font(.caption)
+                } else {
+                    HStack {
+                        Text("Updated \(session.updatedText)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let duration = session.duration {
+                            Spacer()
+                            Text(formatDuration(duration))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -106,16 +128,36 @@ struct SessionCardView: View {
             // 세션명 (메인)
             Text(session.name)
                 .font(.system(size: 12, weight: .medium))
-                .lineLimit(3)
+                .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 키워드/요약 (lastPrompt에서 추출)
+            if let prompt = session.lastPrompt, !prompt.isEmpty {
+                Text(prompt)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             Spacer(minLength: 0)
 
             // 하단: 시간 + 상태 인디케이터
             HStack(spacing: 4) {
-                Text(session.updatedText)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+                if session.status == .running, let startedAt = session.startedAt {
+                    ElapsedTimeText(startedAt: startedAt)
+                } else {
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let duration = session.duration {
+                            Text(formatDuration(duration))
+                                .font(.system(size: 10, weight: .medium).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(session.updatedText)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
                 Spacer()
                 CompactStatusIndicator(status: session.status)
             }
@@ -131,6 +173,34 @@ struct SessionCardView: View {
                 .strokeBorder(session.status.tint.opacity(0.3), lineWidth: 1)
         }
         .hoverCardStyle(cornerRadius: 10)
+    }
+}
+
+// MARK: - 경과 시간 텍스트 (실시간 업데이트)
+
+private struct ElapsedTimeText: View {
+    let startedAt: TimeInterval
+    @State private var elapsed: TimeInterval = 0
+
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        Text(formatElapsed(elapsed))
+            .font(.system(size: 10, weight: .medium).monospacedDigit())
+            .foregroundStyle(.secondary)
+            .onAppear {
+                elapsed = Date().timeIntervalSince1970 - startedAt
+            }
+            .onReceive(timer) { _ in
+                elapsed = Date().timeIntervalSince1970 - startedAt
+            }
+    }
+
+    private func formatElapsed(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds))
+        let mins = total / 60
+        let secs = total % 60
+        return String(format: "%d:%02d", mins, secs)
     }
 }
 

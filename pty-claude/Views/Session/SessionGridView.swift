@@ -10,6 +10,7 @@ import SwiftUI
 struct SessionGridView: View {
     let sessions: [SessionItem]
     let onSelect: (SessionItem) -> Void
+    var onDelete: ((SessionItem) -> Void)?
 
     /// 적응형 격자 열 정의 (최소 120pt, 최대 160pt)
     private let columns = [
@@ -25,6 +26,13 @@ struct SessionGridView: View {
                     SessionCardView(session: session, style: .compact)
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    Button(role: .destructive) {
+                        onDelete?(session)
+                    } label: {
+                        Label("삭제", systemImage: "trash")
+                    }
+                }
             }
         }
     }
@@ -36,6 +44,7 @@ struct SessionSectionGridView: View {
     let collapsedIds: Set<String>
     let onToggleSection: (String) -> Void
     let onSelectSession: (SessionItem) -> Void
+    var onDeleteSession: ((SessionItem) -> Void)?
 
     private let columns = [
         GridItem(.adaptive(minimum: 120, maximum: 160), spacing: 10)
@@ -68,6 +77,13 @@ struct SessionSectionGridView: View {
                                     SessionCardView(session: session, style: .compact)
                                 }
                                 .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        onDeleteSession?(session)
+                                    } label: {
+                                        Label("삭제", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                     }

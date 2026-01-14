@@ -32,13 +32,15 @@ struct SessionDetailSheet: View {
         .background(Color(NSColor.windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: Color.black.opacity(0.15), radius: 16, x: 0, y: 8)
-        .alert("세션을 삭제할까요?", isPresented: $showDeleteConfirmation) {
-            Button("취소", role: .cancel) {}
+        .confirmationDialog(
+            "세션 삭제",
+            isPresented: $showDeleteConfirmation
+        ) {
             Button("삭제", role: .destructive) {
                 deleteSession()
             }
         } message: {
-            Text("이 세션과 대화 기록을 영구히 삭제합니다.")
+            Text("'\(session.name)' 세션을 삭제하시겠습니까?\n아카이브된 대화 기록도 함께 삭제됩니다.")
         }
         .onAppear {
             selectDefaultEntryIfNeeded()
