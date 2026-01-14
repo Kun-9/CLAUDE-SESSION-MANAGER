@@ -142,10 +142,26 @@ enum ClaudeSettingsService {
             ],
         ]
 
+        let resumeEntry: [[String: Any]] = [
+            [
+                "matcher": "resume",
+                "hooks": [
+                    [
+                        "type": "command",
+                        "command": command,
+                    ],
+                ],
+            ],
+        ]
+
         return [
             "PreToolUse": hookEntry,
             "Stop": hookEntry,
             "PermissionRequest": hookEntry,
+            "SessionStart": hookEntry + resumeEntry,
+            "SessionEnd": hookEntry,
+            "UserPromptSubmit": hookEntry,
+            "PostToolUse": hookEntry,
         ]
     }
 

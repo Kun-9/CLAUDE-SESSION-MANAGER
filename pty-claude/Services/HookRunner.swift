@@ -6,13 +6,20 @@ struct HookEvent: Decodable {
     let tool_name: String?
     let cwd: String?
     let session_id: String?
+    let prompt: String?
+    let transcript_path: String?
 }
 
 enum HookRunner {
     // 표준 입력으로 받은 훅 이벤트 처리
     static func run() {
-        guard let event = readEvent() else {
+        guard let envelope = readEvent() else {
             return
+        }
+        let event = envelope.event
+
+        if SettingsStore.debugEnabled() {
+            logDebugEvent(event, rawPayload: envelope.rawPayload)
         }
 
         let hookType = event.hook_event_name ?? ""
@@ -23,19 +30,38 @@ enum HookRunner {
             handleStop(event)
         case "PermissionRequest":
             handlePermission(event)
+        case "SessionStart":
+            handleSessionStart(event)
+        case "UserPromptSubmit":
+            handleUserPromptSubmit(event)
+        case "PostToolUse":
+            handlePostToolUse(event)
+        case "SessionEnd":
+            handleSessionEnd(event)
         default:
             break
         }
+
+        SessionStore.notifySessionsUpdated()
     }
 
     // stdin JSON 디코딩
-    private static func readEvent() -> HookEvent? {
+    private struct HookEventEnvelope {
+        let event: HookEvent
+        let rawPayload: String
+    }
+
+    private static func readEvent() -> HookEventEnvelope? {
         let input = FileHandle.standardInput.readDataToEndOfFile()
         guard !input.isEmpty else {
             return nil
         }
 
-        return try? JSONDecoder().decode(HookEvent.self, from: input)
+        guard let event = try? JSONDecoder().decode(HookEvent.self, from: input) else {
+            return nil
+        }
+        let rawPayload = String(data: input, encoding: .utf8) ?? ""
+        return HookEventEnvelope(event: event, rawPayload: rawPayload)
     }
 
     // PreToolUse 이벤트 처리
@@ -56,15 +82,67 @@ enum HookRunner {
 
     // Stop 이벤트 처리
     private static func handleStop(_ event: HookEvent) {
+        // 응답 완료 상태로 전환
+        SessionStore.updateSessionStatus(sessionId: event.session_id, status: .finished)
+        // transcript_path 기반 아카이빙
+        let summary = TranscriptArchiveService.archiveTranscript(
+            sessionId: event.session_id,
+            transcriptPath: event.transcript_path
+        )
+        if let summary {
+            SessionStore.updateSessionArchive(
+                sessionId: event.session_id,
+                lastPrompt: summary.lastPrompt,
+                lastResponse: summary.lastResponse
+            )
+        }
         guard SettingsStore.stopEnabled() else { return }
         notify(message: "✅ 응답이 완료되었습니다.", cwd: event.cwd, sessionId: event.session_id)
     }
 
     // PermissionRequest 이벤트 처리
     private static func handlePermission(_ event: HookEvent) {
+        SessionStore.updateSessionStatus(sessionId: event.session_id, status: .permission)
         guard SettingsStore.permissionEnabled() else { return }
         let toolName = event.tool_name ?? "Unknown"
         notify(message: "⚠️ 권한 요청: \(toolName)", cwd: event.cwd, sessionId: event.session_id)
+    }
+
+    private static func handleSessionStart(_ event: HookEvent) {
+        SessionStore.addSessionStart(sessionId: event.session_id, cwd: event.cwd)
+        let summary = TranscriptArchiveService.archiveTranscript(
+            sessionId: event.session_id,
+            transcriptPath: event.transcript_path
+        )
+        if summary != nil {
+            SessionStore.updateSessionStatus(sessionId: event.session_id, status: .finished)
+        }
+        if let summary {
+            SessionStore.updateSessionArchive(
+                sessionId: event.session_id,
+                lastPrompt: summary.lastPrompt,
+                lastResponse: summary.lastResponse
+            )
+        }
+    }
+
+    private static func handleUserPromptSubmit(_ event: HookEvent) {
+        SessionStore.updateSessionStatus(
+            sessionId: event.session_id,
+            status: .running,
+            prompt: event.prompt
+        )
+    }
+
+    private static func handlePostToolUse(_ event: HookEvent) {
+        SessionStore.updateSessionStatus(
+            sessionId: event.session_id,
+            status: .running
+        )
+    }
+
+    private static func handleSessionEnd(_ event: HookEvent) {
+        SessionStore.updateSessionStatus(sessionId: event.session_id, status: .ended)
     }
 
     // 허용 도구 목록 기반 필터링
@@ -79,15 +157,9 @@ enum HookRunner {
     // 프로젝트 이름 기반 알림 전송
     private static func notify(message: String, cwd: String?, sessionId: String?) {
         let projectName = cwd?.split(separator: "/").last.map(String.init) ?? "Unknown"
-        let fullMessage: String
-        if let sessionId, !sessionId.isEmpty {
-            fullMessage = "\(message)\nSession: \(sessionId)"
-        } else {
-            fullMessage = message
-        }
         NotificationManager.send(
             title: "Claude [\(projectName)]",
-            body: fullMessage
+            body: message
         )
     }
 
@@ -98,5 +170,19 @@ enum HookRunner {
             return
         }
         FileHandle.standardOutput.write(data)
+    }
+
+    private static func logDebugEvent(_ event: HookEvent, rawPayload: String) {
+        let entry = DebugLogEntry(
+            timestamp: Date().timeIntervalSince1970,
+            hookName: event.hook_event_name ?? "Unknown",
+            toolName: event.tool_name,
+            sessionId: event.session_id,
+            cwd: event.cwd,
+            transcriptPath: event.transcript_path,
+            prompt: event.prompt,
+            rawPayload: rawPayload
+        )
+        SettingsStore.appendDebugLog(entry)
     }
 }

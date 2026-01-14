@@ -32,6 +32,10 @@ struct ContentView: View {
     @State private var previewError: String?
     @State private var showApplyConfirmation = false
     @AppStorage("ui.useDarkMode") private var useDarkMode = false
+    @State private var selectedSession: SessionItem?
+    @FocusState private var isSessionModalFocused: Bool
+    @EnvironmentObject private var debugLogStore: DebugLogStore
+    @EnvironmentObject private var toastCenter: ToastCenter
 
     // 텍스트 입력 포커스 관리
     @FocusState private var focusedField: FocusField?
@@ -55,100 +59,182 @@ struct ContentView: View {
     ]
 
     var body: some View {
-        // 좌측 사이드바 + 우측 상세 화면 구성
-        NavigationSplitView {
-            List(selection: $selection) {
-                Section("Settings") {
-                    Label("Hooks", systemImage: "bolt.horizontal.fill")
-                        .tag(SidebarItem.hooks)
-                    Label("Sound", systemImage: "speaker.wave.2.fill")
-                        .tag(SidebarItem.sound)
-                    Label("Claude", systemImage: "sparkles")
-                        .tag(SidebarItem.claude)
-                }
-            }
-            .listStyle(.sidebar)
-            .frame(minWidth: 200)
-        } detail: {
-            switch selection ?? .hooks {
-            case .hooks:
-                hooksView
-            case .sound:
-                soundView
-            case .claude:
-                claudeView
-            }
-        }
-        .frame(minWidth: 720, minHeight: 520)
-        .toolbar {
-            if selection != .claude {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        saveDrafts()
-                    } label: {
-                        Image(systemName: "checkmark")
-                        .padding(5)
-                    }
-                    .keyboardShortcut(KeyEquivalent("s"), modifiers: [.command])
-                    .disabled(!hasChanges)
-                    .controlSize(.small)
-                    .tint(hasChanges ? .blue : .secondary)
-                }
-            }
-        }
-        .onAppear {
-            // 앱 최초 진입 시 저장된 값을 임시 값으로 로드
-            if !hasLoadedDrafts {
-                loadDrafts()
-                hasLoadedDrafts = true
-            }
-            NSApp.appearance = NSAppearance(named: useDarkMode ? .darkAqua : .aqua)
-        }
-        .onChange(of: useDarkMode) { _, newValue in
-            NSApp.appearance = NSAppearance(named: newValue ? .darkAqua : .aqua)
-        }
-        .sheet(isPresented: $showClaudePreview) {
-            // 변경 사항 미리보기 시트
-            ClaudePreviewSheet(
-                afterLines: previewAfterLines,
-                errorMessage: previewError,
-                onClose: {
-                    showClaudePreview = false
-                }
-            )
-        }
-        .overlay(alignment: .bottomTrailing) {
-            Button {
-                useDarkMode.toggle()
-            } label: {
-                Image(systemName: useDarkMode ? "moon.fill" : "sun.max.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .padding(8)
-            }
-            .buttonStyle(.plain)
-            .help("Toggle appearance")
-            .accessibilityLabel("Toggle appearance")
-            .padding(12)
-        }
+        rootView
     }
 }
 
 #Preview {
     ContentView()
+        .environmentObject(ToastCenter())
+        .environmentObject(DebugLogStore())
 }
 
 private enum SidebarItem: Hashable {
     case hooks
     case sound
     case claude
+    case session
+    case debug
 }
 
 private extension ContentView {
+    var rootView: some View {
+        let view = navigationView
+            .frame(minWidth: 850, minHeight: 650)
+            .toolbar {
+                mainToolbar
+            }
+            .onAppear {
+                // 앱 최초 진입 시 저장된 값을 임시 값으로 로드
+                if !hasLoadedDrafts {
+                    loadDrafts()
+                    hasLoadedDrafts = true
+                }
+                NSApp.appearance = NSAppearance(named: useDarkMode ? .darkAqua : .aqua)
+            }
+            .onChange(of: useDarkMode) { _, newValue in
+                NSApp.appearance = NSAppearance(named: newValue ? .darkAqua : .aqua)
+            }
+            .onChange(of: selectedSession?.id) { _, newValue in
+                isSessionModalFocused = newValue != nil
+            }
+            .sheet(isPresented: $showClaudePreview) {
+                // 변경 사항 미리보기 시트
+                ClaudePreviewSheet(
+                    afterLines: previewAfterLines,
+                    errorMessage: previewError,
+                    onClose: {
+                        showClaudePreview = false
+                    }
+                )
+            }
+            .overlay(alignment: .bottomTrailing) {
+                appearanceToggleOverlay
+            }
+            .overlay {
+                sessionDetailOverlay
+            }
+            .overlay(alignment: .bottom) {
+                toastOverlay
+            }
+        return AnyView(view)
+    }
+
+    var navigationView: some View {
+        NavigationSplitView {
+            sidebarView
+        } detail: {
+            detailView
+        }
+    }
+
+    @ViewBuilder
+    var sidebarView: some View {
+        List(selection: $selection) {
+            Section("Settings") {
+                Label("Hooks", systemImage: "bolt.horizontal.fill")
+                    .tag(SidebarItem.hooks)
+                Label("Sound", systemImage: "speaker.wave.2.fill")
+                    .tag(SidebarItem.sound)
+                Label("Claude", systemImage: "sparkles")
+                    .tag(SidebarItem.claude)
+                Label("Session", systemImage: "rectangle.stack")
+                    .tag(SidebarItem.session)
+                Label("Debug", systemImage: "ladybug")
+                    .tag(SidebarItem.debug)
+            }
+        }
+        .listStyle(.sidebar)
+        .frame(minWidth: 200)
+    }
+
+    @ViewBuilder
+    var detailView: some View {
+        switch selection ?? .hooks {
+        case .hooks:
+            hooksView
+        case .sound:
+            soundView
+        case .claude:
+            claudeView
+        case .session:
+            sessionView
+        case .debug:
+            debugView
+        }
+    }
+
+    @ToolbarContentBuilder
+    var mainToolbar: some ToolbarContent {
+        if selection != .claude && selection != .session && selection != .debug {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    saveDrafts()
+                } label: {
+                    Image(systemName: "checkmark")
+                        .padding(5)
+                }
+                .keyboardShortcut(KeyEquivalent("s"), modifiers: [.command])
+                .disabled(!hasChanges)
+                .controlSize(.small)
+                .tint(hasChanges ? .blue : .secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    var appearanceToggleOverlay: some View {
+        Button {
+            useDarkMode.toggle()
+        } label: {
+            Image(systemName: useDarkMode ? "moon.fill" : "sun.max.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .padding(8)
+        }
+        .buttonStyle(.plain)
+        .help("Toggle appearance")
+        .accessibilityLabel("Toggle appearance")
+        .padding(12)
+    }
+
+    @ViewBuilder
+    var sessionDetailOverlay: some View {
+        if let session = selectedSession {
+            GeometryReader { proxy in
+                let width = min(max(proxy.size.width * 0.8, 640), proxy.size.width - 40)
+                let height = min(max(proxy.size.height * 0.8, 460), proxy.size.height - 40)
+                ZStack {
+                    Color.black.opacity(0.2)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            selectedSession = nil
+                        }
+                    SessionDetailSheet(session: session) {
+                        selectedSession = nil
+                    }
+                    .frame(width: width, height: height)
+                }
+                .focusable(true)
+                .focusEffectDisabled(true)
+                .focused($isSessionModalFocused)
+                .onExitCommand {
+                    selectedSession = nil
+                }
+            }
+            .transition(.opacity)
+        }
+    }
+
+    var toastOverlay: some View {
+        ToastOverlayView()
+            .padding(.bottom, 20)
+    }
+
     // Hooks 설정 화면
     var hooksView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                header(title: "Hooks", subtitle: "Choose which events trigger notifications.")
+                SectionHeaderView(title: "Hooks", subtitle: "Choose which events trigger notifications.")
 
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("PreToolUse", isOn: $draftPreToolUseEnabled)
@@ -181,6 +267,11 @@ private extension ContentView {
         .simultaneousGesture(TapGesture().onEnded { dismissFocus() })
     }
 
+    var debugView: some View {
+        DebugView()
+            .environmentObject(debugLogStore)
+    }
+
     // Sound 설정 화면
     var soundView: some View {
         ScrollView {
@@ -191,7 +282,7 @@ private extension ContentView {
                     .labelsHidden()
 
                 VStack(alignment: .leading, spacing: 20) {
-                    header(title: "Sound", subtitle: "Global notification sound settings.")
+                    SectionHeaderView(title: "Sound", subtitle: "Global notification sound settings.")
 
                     VStack(alignment: .leading, spacing: 12) {
                         VStack(alignment: .leading, spacing: 8) {
@@ -247,14 +338,15 @@ private extension ContentView {
     var claudeView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                header(title: "Claude", subtitle: "Update Claude hooks to call this app.")
+                SectionHeaderView(title: "Claude", subtitle: "Update Claude hooks to call this app.")
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Hook command")
                         .font(.subheadline.weight(.semibold))
-                    CodeBlockView(text: currentHookCommand() ?? "Unable to locate executable path.") {
-                        if let command = currentHookCommand() {
-                            copyToClipboard(command)
+                    CodeBlockView(text: ExecutableService.hookCommandPath() ?? "Unable to locate executable path.") {
+                        if let command = ExecutableService.hookCommandPath() {
+                            ClipboardService.copy(command)
+                            toastCenter.show("클립보드에 복사됨")
                             claudeStatus = "Hook command copied."
                         }
                     }
@@ -262,7 +354,8 @@ private extension ContentView {
                         .font(.subheadline.weight(.semibold))
                     CodeBlockView(text: hooksJSONSnippetText ?? "Unable to locate executable path.", maxHeight: 140, onCopy: hooksJSONSnippetText == nil ? nil : {
                         if let snippet = hooksJSONSnippetText {
-                            copyToClipboard(snippet)
+                            ClipboardService.copy(snippet)
+                            toastCenter.show("클립보드에 복사됨")
                             claudeStatus = "Hooks JSON copied."
                         }
                     })
@@ -278,7 +371,7 @@ private extension ContentView {
                         Button("Preview Changes") {
                             // 변경 미리보기 계산
                             let preview: (after: [PreviewLine], canApply: Bool, statusMessage: String?, error: String?)
-                            if let command = currentHookCommand() {
+                            if let command = ExecutableService.hookCommandPath() {
                                 preview = ClaudeSettingsService.buildHooksPreview(command: command)
                             } else {
                                 preview = ([], false, "Unable to resolve the app executable path.", "Unable to resolve the app executable path.")
@@ -304,6 +397,13 @@ private extension ContentView {
                                 .buttonStyle(.bordered)
                                 .disabled(true)
                         }
+
+                        Button("Test") {
+                            requestHookTest()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(ExecutableService.hookCommandPath() == nil)
+                        .help("Send hook test")
                     }
 
                     Text(claudeStatus)
@@ -326,7 +426,7 @@ private extension ContentView {
             .alert("Overwrite settings.json hooks?", isPresented: $showApplyConfirmation) {
                 Button("Cancel", role: .cancel) {}
                 Button("Apply Updates", role: .destructive) {
-                    if let command = currentHookCommand() {
+                    if let command = ExecutableService.hookCommandPath() {
                         claudeStatus = ClaudeSettingsService.updateHooks(command: command)
                     } else {
                         claudeStatus = "Unable to resolve the app executable path."
@@ -341,15 +441,9 @@ private extension ContentView {
         .simultaneousGesture(TapGesture().onEnded { dismissFocus() })
     }
 
-    // 화면 상단 타이틀/서브타이틀 공통 구성
-    func header(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.title2.weight(.semibold))
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
+    // Session 관리 화면
+    var sessionView: some View {
+        SessionView(selectedSession: $selectedSession)
     }
 
     // 저장된 값과 임시 값이 다른지 여부
@@ -387,12 +481,7 @@ private extension ContentView {
 
     // 사운드 이름으로 미리듣기 재생
     func previewSound() {
-        let name = draftSoundName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        if let sound = NSSound(named: NSSound.Name(name)) {
-            sound.volume = Float(draftSoundVolume)
-            sound.play()
-        }
+        SoundService.play(name: draftSoundName, volume: draftSoundVolume)
     }
 
     // 텍스트 입력 포커스 해제
@@ -401,41 +490,47 @@ private extension ContentView {
         NSApp.keyWindow?.makeFirstResponder(nil)
     }
 
-    // 클립보드에 텍스트 복사
-    func copyToClipboard(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-    }
-
-    // 앱 번들에 포함된 훅 CLI 경로 기반 훅 명령 구성
-    func currentHookCommand() -> String? {
-        let toolURL = Bundle.main.bundleURL
-            .appendingPathComponent("Contents")
-            .appendingPathComponent("Resources")
-            .appendingPathComponent("pty-claude-hook")
-        guard FileManager.default.isExecutableFile(atPath: toolURL.path) else {
-            return nil
-        }
-        return "\(toolURL.path)"
-    }
-
     // hooks에 실제로 설정될 JSON 스니펫
     var hooksJSONSnippetText: String? {
-        guard let command = currentHookCommand() else {
+        guard let command = ExecutableService.hookCommandPath() else {
             return nil
         }
         return ClaudeSettingsService.hooksJSONSnippet(command: command)
     }
 
     func refreshClaudeApplyState() {
-        guard let command = currentHookCommand() else {
+        guard let command = ExecutableService.hookCommandPath() else {
             claudeCanApply = false
             return
         }
         claudeCanApply = ClaudeSettingsService.hooksNeedUpdate(command: command)
     }
 
+    func requestHookTest() {
+        guard let command = ExecutableService.hookCommandPath() else {
+            claudeStatus = "Unable to resolve the app executable path."
+            return
+        }
+
+        let settings = HookTestService.Settings(
+            preToolUseEnabled: storedPreToolUseEnabled,
+            stopEnabled: storedStopEnabled,
+            permissionEnabled: storedPermissionEnabled,
+            preToolUseTools: storedPreToolUseTools
+        )
+
+        claudeStatus = "Sending hook test..."
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = HookTestService.run(
+                command: command,
+                sessionId: "hook-test",
+                settings: settings
+            )
+            DispatchQueue.main.async {
+                claudeStatus = result.status
+            }
+        }
+    }
 }
 
 // 텍스트필드 포커스 식별자
