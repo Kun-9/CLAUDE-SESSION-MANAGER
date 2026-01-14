@@ -90,7 +90,6 @@ private extension ContentView {
                     draftSoundName: $draftSoundName,
                     draftSoundVolume: $draftSoundVolume,
                     soundOptions: soundOptions,
-                    hasChanges: hasChanges,
                     onSave: saveDrafts,
                     onClose: { showSettings = false }
                 )
@@ -161,19 +160,6 @@ private extension ContentView {
 // MARK: - Settings Helpers
 
 private extension ContentView {
-    /// 저장된 값과 임시 값이 다른지 여부
-    var hasChanges: Bool {
-        guard hasLoadedDrafts else { return false }
-        return storedNotificationsEnabled != draftNotificationsEnabled
-            || storedPreToolUseEnabled != draftPreToolUseEnabled
-            || storedPreToolUseTools != draftPreToolUseTools
-            || storedStopEnabled != draftStopEnabled
-            || storedPermissionEnabled != draftPermissionEnabled
-            || storedSoundEnabled != draftSoundEnabled
-            || storedSoundName != draftSoundName
-            || storedSoundVolume != draftSoundVolume
-    }
-
     /// 저장된 값을 임시 값으로 복사
     func loadDrafts() {
         draftNotificationsEnabled = storedNotificationsEnabled

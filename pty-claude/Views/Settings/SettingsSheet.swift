@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct SettingsSheet: View {
-    // MARK: - Bindings
+    // MARK: - Bindings (편집 중인 임시 값)
     @Binding var draftNotificationsEnabled: Bool
     @Binding var draftPreToolUseEnabled: Bool
     @Binding var draftPreToolUseTools: String
@@ -16,10 +16,39 @@ struct SettingsSheet: View {
     @Binding var draftSoundName: String
     @Binding var draftSoundVolume: Double
 
+    // MARK: - 저장된 값 (UserDefaults에서 직접 읽기)
+    @AppStorage(SettingsKeys.notificationsEnabled, store: SettingsStore.defaults)
+    private var storedNotificationsEnabled = true
+    @AppStorage(SettingsKeys.preToolUseEnabled, store: SettingsStore.defaults)
+    private var storedPreToolUseEnabled = false
+    @AppStorage(SettingsKeys.preToolUseTools, store: SettingsStore.defaults)
+    private var storedPreToolUseTools = "AskUserQuestion"
+    @AppStorage(SettingsKeys.stopEnabled, store: SettingsStore.defaults)
+    private var storedStopEnabled = true
+    @AppStorage(SettingsKeys.permissionEnabled, store: SettingsStore.defaults)
+    private var storedPermissionEnabled = true
+    @AppStorage(SettingsKeys.soundEnabled, store: SettingsStore.defaults)
+    private var storedSoundEnabled = true
+    @AppStorage(SettingsKeys.soundName, store: SettingsStore.defaults)
+    private var storedSoundName = "Glass"
+    @AppStorage(SettingsKeys.soundVolume, store: SettingsStore.defaults)
+    private var storedSoundVolume = 1.0
+
     let soundOptions: [String]
-    let hasChanges: Bool
     let onSave: () -> Void
     let onClose: () -> Void
+
+    /// 저장된 값과 편집 중인 값이 다른지 여부
+    private var hasChanges: Bool {
+        storedNotificationsEnabled != draftNotificationsEnabled
+            || storedPreToolUseEnabled != draftPreToolUseEnabled
+            || storedPreToolUseTools != draftPreToolUseTools
+            || storedStopEnabled != draftStopEnabled
+            || storedPermissionEnabled != draftPermissionEnabled
+            || storedSoundEnabled != draftSoundEnabled
+            || storedSoundName != draftSoundName
+            || storedSoundVolume != draftSoundVolume
+    }
 
     // MARK: - State
     @State private var selectedTab: SettingsTab = .notifications
