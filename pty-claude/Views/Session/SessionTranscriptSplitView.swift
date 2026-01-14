@@ -57,6 +57,9 @@ struct SessionTranscriptListView: View {
     // 실시간 상태 (liveEntryId 카드에 인디케이터 표시용)
     var isRunning: Bool = false
 
+    // 초기 로드 여부 (첫 스크롤은 애니메이션 없이)
+    @State private var hasInitiallyScrolled = false
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -84,11 +87,23 @@ struct SessionTranscriptListView: View {
             }
             .scrollIndicators(.never)
             .frame(minWidth: 260, idealWidth: 280, maxWidth: 320)
+            .onAppear {
+                // 초기 스크롤 (애니메이션 없이)
+                if let id = selectedEntryId {
+                    proxy.scrollTo(id, anchor: nil)
+                    hasInitiallyScrolled = true
+                }
+            }
             .onChange(of: selectedEntryId) { _, newValue in
-                // 선택된 카드로 스크롤
+                // 선택된 카드로 스크롤 (초기 로드 후에만 애니메이션)
                 if let id = newValue {
-                    withAnimation {
-                        proxy.scrollTo(id, anchor: .bottom)
+                    if hasInitiallyScrolled {
+                        withAnimation {
+                            proxy.scrollTo(id, anchor: nil)
+                        }
+                    } else {
+                        proxy.scrollTo(id, anchor: nil)
+                        hasInitiallyScrolled = true
                     }
                 }
             }
@@ -188,7 +203,7 @@ struct SessionTranscriptCard: View {
     var body: some View {
         let badgeInfo = roleBadgeInfo(for: entry, showFullTranscript: showFullTranscript)
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 6) {
+            HStack(alignment: .center, spacing: 6) {
                 SessionRoleBadge(label: badgeInfo.label, color: badgeInfo.color)
                 Spacer()
                 // 실시간 카드면 로딩 인디케이터, 아니면 시간 표시
