@@ -4,8 +4,10 @@ import SwiftUI
 struct SessionView: View {
     @StateObject private var viewModel = SessionListViewModel()
     @Binding var selectedSession: SessionItem?
-    @State private var listMode: SessionListMode = .all
+    @State private var listMode: SessionListMode = .byLocation
     @State private var collapsedSectionIds: Set<String> = []
+    @AppStorage(SettingsKeys.sessionListMode, store: SettingsStore.defaults) private var storedListMode = SessionListMode.byLocation.rawValue
+    @AppStorage(SettingsKeys.sessionCollapsedSections, store: SettingsStore.defaults) private var storedCollapsedSections = "[]"
 
     var body: some View {
         ScrollView {
@@ -50,6 +52,16 @@ struct SessionView: View {
                 }
             }
             .padding(24)
+        }
+        .onAppear {
+            listMode = SessionListMode(rawValue: storedListMode) ?? .byLocation
+            collapsedSectionIds = decodeCollapsedSections(storedCollapsedSections)
+        }
+        .onChange(of: listMode) { _, newValue in
+            storedListMode = newValue.rawValue
+        }
+        .onChange(of: collapsedSectionIds) { _, newValue in
+            storedCollapsedSections = encodeCollapsedSections(newValue)
         }
     }
 
@@ -101,6 +113,23 @@ struct SessionView: View {
         } else {
             collapsedSectionIds.insert(id)
         }
+    }
+
+    private func decodeCollapsedSections(_ value: String) -> Set<String> {
+        guard let data = value.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([String].self, from: data) else {
+            return []
+        }
+        return Set(decoded)
+    }
+
+    private func encodeCollapsedSections(_ value: Set<String>) -> String {
+        let sorted = value.sorted()
+        guard let data = try? JSONEncoder().encode(sorted),
+              let encoded = String(data: data, encoding: .utf8) else {
+            return "[]"
+        }
+        return encoded
     }
 }
 
