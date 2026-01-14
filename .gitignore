@@ -39,4 +39,4 @@ fastlane/test_output
 *.ipa
 *.dSYM.zip
 *.dSYM
-.claude/settings.local.json
+.claude/
