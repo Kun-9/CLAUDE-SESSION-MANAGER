@@ -13,6 +13,7 @@ enum SettingsKeys {
     static let debugLogs = "debug.logs"
     static let sessionListMode = "session.list.mode"
     static let sessionLayoutMode = "session.layout.mode"
+    static let sessionStatusFilter = "session.status.filter"
     static let sessionCollapsedSections = "session.collapsed.sections"
 }
 

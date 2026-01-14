@@ -14,9 +14,10 @@ struct SessionView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // 컨트롤 영역: 그룹핑 모드 + 레이아웃 모드
+                // 컨트롤 영역: 그룹핑 모드 + 필터 + 레이아웃 모드
                 HStack(spacing: 12) {
                     SessionListModeToggle(selection: $viewModel.listMode)
+                    SessionStatusFilterToggle(selection: $viewModel.statusFilter)
                     Spacer()
                     SessionLayoutToggle(selection: $viewModel.layoutMode)
                 }
@@ -65,7 +66,7 @@ struct SessionView: View {
     @ViewBuilder
     private var allListView: some View {
         LazyVStack(spacing: 12) {
-            ForEach(viewModel.sessions) { session in
+            ForEach(viewModel.filteredSessions) { session in
                 sessionButton(for: session)
             }
         }
@@ -74,7 +75,7 @@ struct SessionView: View {
     @ViewBuilder
     private var allGridView: some View {
         SessionGridView(
-            sessions: viewModel.sessions,
+            sessions: viewModel.filteredSessions,
             onSelect: { selectedSession = $0 },
             onDelete: { sessionToDelete = $0 }
         )
@@ -133,6 +134,47 @@ struct SessionView: View {
                 Label("삭제", systemImage: "trash")
             }
         }
+    }
+}
+
+// MARK: - 상태 필터 토글
+
+private struct SessionStatusFilterToggle: View {
+    @Binding var selection: SessionStatusFilter
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(SessionStatusFilter.allCases) { filter in
+                filterButton(for: filter)
+            }
+        }
+        .padding(3)
+        .background {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private func filterButton(for filter: SessionStatusFilter) -> some View {
+        let isSelected = selection == filter
+        Button {
+            selection = filter
+        } label: {
+            Text(filter.rawValue)
+                .font(.system(size: 12, weight: .medium))
+                .frame(height: 28)
+                .padding(.horizontal, 10)
+                .contentShape(Rectangle())
+                .foregroundColor(isSelected ? filter.tint : Color.secondary.opacity(0.6))
+        }
+        .buttonStyle(.plain)
+        .background(isSelected ? filter.background : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
 
