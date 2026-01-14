@@ -8,6 +8,8 @@ struct SessionItem: Identifiable {
     let location: String?
     let status: SessionStatus
     let updatedText: String
+    let startedAt: TimeInterval?  // 작업 시작 시간 (running 상태일 때만 유효)
+    let duration: TimeInterval?   // 마지막 작업 소요 시간
     let lastPrompt: String?
     let lastResponse: String?
 }
@@ -91,6 +93,8 @@ extension SessionItem {
         location = record.location
         status = SessionStatus(recordStatus: record.status)
         updatedText = SessionItem.relativeUpdateText(from: record.updatedAt)
+        startedAt = record.startedAt
+        duration = record.duration
         lastPrompt = record.lastPrompt
         lastResponse = record.lastResponse
     }

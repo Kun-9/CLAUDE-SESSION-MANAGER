@@ -1,6 +1,14 @@
+// MARK: - 파일 설명
+// SessionTranscriptSplitView: 대화 내용 분할 뷰
+// - 좌측: 대화 목록 (SessionTranscriptListView)
+// - 우측: 선택된 대화 상세 (SessionTranscriptDetailView)
+// - 실시간 대화 카드 지원 (liveEntryId)
+
 import AppKit
 import Foundation
 import SwiftUI
+
+// MARK: - Constants
 
 // 타임스탬프 표시용 포맷터 (가독성 우선)
 private let transcriptTimestampFormatter: DateFormatter = {
@@ -9,18 +17,25 @@ private let transcriptTimestampFormatter: DateFormatter = {
     return formatter
 }()
 
+/// 실시간 대화 카드의 고정 ID (UUID(0)으로 고정)
+let liveEntryId = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+
 // 좌측 목록 + 우측 상세 구성
 struct SessionTranscriptSplitView: View {
     let entries: [TranscriptEntry]
     @Binding var selectedEntryId: UUID?
     @Binding var showFullTranscript: Bool
 
+    // 실시간 상태 (liveEntryId 카드에 인디케이터 표시용)
+    var isRunning: Bool = false
+
     var body: some View {
         HStack(spacing: 16) {
             SessionTranscriptListView(
                 entries: entries,
                 selectedEntryId: $selectedEntryId,
-                showFullTranscript: $showFullTranscript
+                showFullTranscript: $showFullTranscript,
+                isRunning: isRunning
             )
             Divider()
             SessionTranscriptDetailView(
@@ -39,30 +54,45 @@ struct SessionTranscriptListView: View {
     @Binding var selectedEntryId: UUID?
     @Binding var showFullTranscript: Bool
 
+    // 실시간 상태 (liveEntryId 카드에 인디케이터 표시용)
+    var isRunning: Bool = false
+
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 10) {
-                Toggle("상세보기", isOn: $showFullTranscript)
-                    .toggleStyle(.switch)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 4)
-                ForEach(entries) { entry in
-                    Button {
-                        selectedEntryId = entry.id
-                    } label: {
-                        SessionTranscriptCard(
-                            entry: entry,
-                            isSelected: entry.id == selectedEntryId,
-                            showFullTranscript: showFullTranscript
-                        )
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    Toggle("상세보기", isOn: $showFullTranscript)
+                        .toggleStyle(.switch)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.bottom, 4)
+                    ForEach(entries) { entry in
+                        Button {
+                            selectedEntryId = entry.id
+                        } label: {
+                            SessionTranscriptCard(
+                                entry: entry,
+                                isSelected: entry.id == selectedEntryId,
+                                showFullTranscript: showFullTranscript,
+                                isLive: entry.id == liveEntryId && isRunning
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .id(entry.id)
                     }
-                    .buttonStyle(.plain)
+                }
+                .padding(.vertical, 4)
+            }
+            .scrollIndicators(.never)
+            .frame(minWidth: 260, idealWidth: 280, maxWidth: 320)
+            .onChange(of: selectedEntryId) { _, newValue in
+                // 선택된 카드로 스크롤
+                if let id = newValue {
+                    withAnimation {
+                        proxy.scrollTo(id, anchor: .bottom)
+                    }
                 }
             }
-            .padding(.vertical, 4)
         }
-        .scrollIndicators(.never)
-        .frame(minWidth: 260, idealWidth: 280, maxWidth: 320)
     }
 }
 
@@ -146,7 +176,6 @@ struct SessionTranscriptDetailView: View {
                 .textSelection(.enabled)
         }
     }
-
 }
 
 // 좌측 목록의 요약 카드
@@ -154,6 +183,7 @@ struct SessionTranscriptCard: View {
     let entry: TranscriptEntry
     let isSelected: Bool
     let showFullTranscript: Bool
+    var isLive: Bool = false
 
     var body: some View {
         let badgeInfo = roleBadgeInfo(for: entry, showFullTranscript: showFullTranscript)
@@ -161,8 +191,10 @@ struct SessionTranscriptCard: View {
             HStack(alignment: .top, spacing: 6) {
                 SessionRoleBadge(label: badgeInfo.label, color: badgeInfo.color)
                 Spacer()
-                // 배지 오른쪽 상단에 시간 표시
-                if let timestampText {
+                // 실시간 카드면 로딩 인디케이터, 아니면 시간 표시
+                if isLive {
+                    TypingIndicatorView(dotColor: .green, dotSize: 6)
+                } else if let timestampText {
                     Text(timestampText)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -180,6 +212,13 @@ struct SessionTranscriptCard: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(isSelected ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.04))
         )
+        .overlay {
+            // 실시간 카드면 테두리 표시
+            if isLive {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.green.opacity(0.3), lineWidth: 1)
+            }
+        }
         .hoverCardStyle(
             cornerRadius: 12,
             baseStrokeOpacity: 0.04,
@@ -249,3 +288,4 @@ private func roleBadgeInfo(for role: TranscriptRole) -> (label: String, color: C
         return (label: "Unknown", color: Color.gray)
     }
 }
+
