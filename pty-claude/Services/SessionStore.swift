@@ -75,7 +75,6 @@ enum SessionStore {
         }
 
         // 새로운 세션 레코드 생성
-        // 새로운 세션 레코드 생성
         let record = SessionRecord(
             id: resolvedId,
             name: projectName,
@@ -153,7 +152,6 @@ enum SessionStore {
             return
         }
 
-        // 기존 레코드 갱신
         // 기존 레코드 갱신
         let existing = sessions[index]
         let updatedPrompt = normalizedPrompt(lastPrompt) ?? existing.lastPrompt

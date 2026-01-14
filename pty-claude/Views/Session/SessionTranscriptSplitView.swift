@@ -83,7 +83,8 @@ struct SessionTranscriptDetailView: View {
                     if selectedEntry.role == .assistant || selectedEntry.role == .user {
                         // 질문/응답 복사 아이콘 버튼
                         Button {
-                            copyToClipboard(selectedEntry.text)
+                            ClipboardService.copy(selectedEntry.text)
+                            toastCenter.show("클립보드에 복사됨")
                         } label: {
                             Image(systemName: "doc.on.doc")
                                 .font(.system(size: 12, weight: .semibold))
@@ -146,13 +147,6 @@ struct SessionTranscriptDetailView: View {
         }
     }
 
-    // 클립보드 복사
-    private func copyToClipboard(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        toastCenter.show("클립보드에 복사됨")
-    }
 }
 
 // 좌측 목록의 요약 카드

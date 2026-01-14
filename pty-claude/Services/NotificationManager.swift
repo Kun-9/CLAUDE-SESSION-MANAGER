@@ -107,15 +107,7 @@ enum NotificationManager {
 
     // 설정에 따른 사운드 재생 처리
     private static func playSoundIfNeeded() {
-        if SettingsStore.soundEnabled() {
-            let soundName = SettingsStore.soundName()
-            if !soundName.isEmpty, let sound = NSSound(named: NSSound.Name(soundName)) {
-                sound.volume = Float(SettingsStore.soundVolume())
-                sound.play()
-                // 짧게 기다려 사운드가 끊기지 않도록 처리
-                waitForSoundPlayback(sound)
-            }
-        }
+        SoundService.playIfEnabled()
     }
 
     // AppleScript 문자열 이스케이프 처리
@@ -123,13 +115,5 @@ enum NotificationManager {
         value
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-    }
-
-    // 재생이 끝나거나 타임아웃까지 대기
-    private static func waitForSoundPlayback(_ sound: NSSound) {
-        let timeout = Date().addingTimeInterval(0.8)
-        while sound.isPlaying && Date() < timeout {
-            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
-        }
     }
 }

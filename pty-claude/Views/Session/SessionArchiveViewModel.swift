@@ -35,6 +35,12 @@ final class SessionArchiveViewModel: ObservableObject {
         archiveSizeText = formattedArchiveSize()
     }
 
+    // 세션 삭제 (아카이브 + 세션 레코드 모두 삭제)
+    func deleteSession() {
+        TranscriptArchiveStore.delete(sessionId: sessionId)
+        SessionStore.deleteSession(sessionId: sessionId)
+    }
+
     // 파일 크기를 사람이 읽기 쉬운 포맷으로 변환
     private func formattedArchiveSize() -> String? {
         guard let size = TranscriptArchiveStore.archiveSize(sessionId: sessionId) else {

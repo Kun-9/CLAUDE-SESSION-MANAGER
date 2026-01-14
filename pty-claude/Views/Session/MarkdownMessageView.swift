@@ -4,10 +4,10 @@ import SwiftUI
 
 // 마크다운 텍스트를 블록 단위로 나눠 렌더링하는 뷰
 struct MarkdownMessageView: View {
-    private let blocks: [MarkdownBlock]
+    private let blocks: [MarkdownParser.Block]
 
     init(text: String) {
-        blocks = MarkdownMessageView.parseBlocks(text)
+        blocks = MarkdownParser.parseBlocks(text)
     }
 
     var body: some View {
@@ -24,57 +24,6 @@ struct MarkdownMessageView: View {
             }
         }
         .textSelection(.enabled)
-    }
-
-    // 코드 블록과 일반 텍스트 블록을 분리
-    private static func parseBlocks(_ text: String) -> [MarkdownBlock] {
-        let lines = text.split(
-            maxSplits: Int.max,
-            omittingEmptySubsequences: false,
-            whereSeparator: \.isNewline
-        )
-        var blocks: [MarkdownBlock] = []
-        var current = ""
-        var isCode = false
-
-        for lineSub in lines {
-            let line = String(lineSub)
-            if line.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).hasPrefix("```") {
-                if isCode {
-                    if !current.isEmpty {
-                        blocks.append(MarkdownBlock(kind: .code(current)))
-                        current = ""
-                    }
-                } else if !current.isEmpty {
-                    blocks.append(MarkdownBlock(kind: .text(current)))
-                    current = ""
-                }
-                isCode.toggle()
-                continue
-            }
-
-            if !current.isEmpty {
-                current.append("\n")
-            }
-            current.append(line)
-        }
-
-        if !current.isEmpty {
-            blocks.append(MarkdownBlock(kind: isCode ? .code(current) : .text(current)))
-        }
-
-        return blocks
-    }
-}
-
-// 블록 단위 데이터 모델
-private struct MarkdownBlock: Identifiable {
-    let id = UUID()
-    let kind: Kind
-
-    enum Kind {
-        case text(String)
-        case code(String)
     }
 }
 
@@ -117,47 +66,18 @@ private struct MarkdownTextBlockView: View {
                 .foregroundStyle(.primary)
         } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
             let content = String(trimmed.dropFirst(2))
-            (Text("• ") + markdownText(content))
+            (Text("• ") + MarkdownParser.parseInlineMarkdown(content))
                 .font(.body)
                 .foregroundStyle(.primary)
-        } else if let ordered = orderedListItem(from: trimmed) {
-            (Text("\(ordered.number). ") + markdownText(ordered.content))
+        } else if let ordered = MarkdownParser.parseOrderedListItem(from: trimmed) {
+            (Text("\(ordered.number). ") + MarkdownParser.parseInlineMarkdown(ordered.content))
                 .font(.body)
                 .foregroundStyle(.primary)
         } else {
-            markdownText(trimmed)
+            MarkdownParser.parseInlineMarkdown(trimmed)
                 .font(.body)
                 .foregroundStyle(.primary)
         }
-    }
-
-    // 숫자 목록 포맷 검출
-    private func orderedListItem(from line: String) -> (number: String, content: String)? {
-        guard let dotIndex = line.firstIndex(of: ".") else {
-            return nil
-        }
-        let numberPart = line[..<dotIndex]
-        guard !numberPart.isEmpty, numberPart.allSatisfy({ $0.isNumber }) else {
-            return nil
-        }
-        let afterDot = line.index(after: dotIndex)
-        guard afterDot < line.endIndex, line[afterDot] == " " else {
-            return nil
-        }
-        let content = line[line.index(after: afterDot)...]
-        return (String(numberPart), String(content))
-    }
-
-    // 인라인 마크다운 스타일 파싱
-    private func markdownText(_ text: String) -> Text {
-        let options = AttributedString.MarkdownParsingOptions(
-            interpretedSyntax: .full,
-            failurePolicy: .returnPartiallyParsedIfPossible
-        )
-        if let attributed = try? AttributedString(markdown: text, options: options) {
-            return Text(attributed)
-        }
-        return Text(text)
     }
 }
 
@@ -177,7 +97,8 @@ private struct MarkdownCodeBlockView: View {
                 .padding(.trailing, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button {
-                copyToClipboard(code)
+                ClipboardService.copy(code)
+                toastCenter.show("클립보드에 복사됨")
             } label: {
                 Image(systemName: "doc.on.doc")
                     .font(.system(size: 12, weight: .semibold))
@@ -192,12 +113,5 @@ private struct MarkdownCodeBlockView: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.primary.opacity(0.06))
         )
-    }
-
-    private func copyToClipboard(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        toastCenter.show("클립보드에 복사됨")
     }
 }

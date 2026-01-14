@@ -9,7 +9,7 @@ private let debugTimestampFormatter: DateFormatter = {
 
 struct DebugView: View {
     @EnvironmentObject private var debugLogStore: DebugLogStore
-    @AppStorage(SettingsKeys.debugEnabled, store: SettingsStore.defaults) private var debugEnabled = false
+    @StateObject private var viewModel = DebugViewModel()
     @State private var expandedPayloadIds: Set<UUID> = []
     private let refreshTimer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
 
@@ -22,7 +22,7 @@ struct DebugView: View {
                 )
 
                 HStack(spacing: 12) {
-                    Toggle("Debug mode", isOn: $debugEnabled)
+                    Toggle("Debug mode", isOn: $viewModel.debugEnabled)
                         .toggleStyle(.switch)
                     Spacer()
                     Button("Refresh") {
@@ -53,11 +53,11 @@ struct DebugView: View {
         .onAppear {
             debugLogStore.reload()
         }
-        .onChange(of: debugEnabled) { _, _ in
+        .onChange(of: viewModel.debugEnabled) { _, _ in
             debugLogStore.reload()
         }
         .onReceive(refreshTimer) { _ in
-            guard debugEnabled else { return }
+            guard viewModel.debugEnabled else { return }
             debugLogStore.reload()
         }
     }
@@ -97,7 +97,7 @@ struct DebugView: View {
             .buttonStyle(.plain)
 
             if expandedPayloadIds.contains(entry.id) {
-                Text(highlightedPayload(entry.rawPayload))
+                Text(JSONFormattingService.highlighted(entry.rawPayload))
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
                     .padding(10)
@@ -130,7 +130,7 @@ struct DebugView: View {
 
     private func payloadHeader(for entry: DebugLogEntry) -> some View {
         let isExpanded = expandedPayloadIds.contains(entry.id)
-        let sizeText = "\(payloadKeyCount(entry.rawPayload))"
+        let sizeText = "\(JSONFormattingService.keyCount(entry.rawPayload))"
 
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
@@ -168,73 +168,6 @@ struct DebugView: View {
                         .fill(emphasized ? Color.accentColor.opacity(0.14) : Color.clear)
                 )
                 .textSelection(.enabled)
-        }
-    }
-
-    private func highlightedPayload(_ rawPayload: String) -> AttributedString {
-        let pretty = prettyPrintedJSON(from: rawPayload)
-        var attributed = AttributedString(pretty)
-
-        applyHighlight(to: &attributed, in: pretty, pattern: #"("([^"\\]|\\.)*")\s*:"#,
-                       captureGroup: 1, color: .blue)
-        applyHighlight(to: &attributed, in: pretty, pattern: #":\s*("([^"\\]|\\.)*")"#,
-                       captureGroup: 1, color: .green)
-        applyHighlight(to: &attributed, in: pretty, pattern: #":\s*(-?\d+(\.\d+)?([eE][+-]?\d+)?)"#,
-                       captureGroup: 1, color: .orange)
-        applyHighlight(to: &attributed, in: pretty, pattern: #":\s*(true|false|null)"#,
-                       captureGroup: 1, color: .secondary)
-
-        return attributed
-    }
-
-    private func prettyPrintedJSON(from raw: String) -> String {
-        guard let data = raw.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data),
-              let prettyData = try? JSONSerialization.data(
-                withJSONObject: object,
-                options: [.prettyPrinted, .sortedKeys]
-              ),
-              let pretty = String(data: prettyData, encoding: .utf8) else {
-            return raw
-        }
-        return pretty
-    }
-
-    private func payloadKeyCount(_ rawPayload: String) -> Int {
-        guard let data = rawPayload.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) else {
-            return 0
-        }
-        if let dict = object as? [String: Any] {
-            return dict.keys.count
-        }
-        if let array = object as? [Any] {
-            return array.count
-        }
-        return 0
-    }
-
-    private func applyHighlight(
-        to attributed: inout AttributedString,
-        in source: String,
-        pattern: String,
-        captureGroup: Int,
-        color: Color
-    ) {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return
-        }
-        let matches = regex.matches(in: source, range: NSRange(source.startIndex..., in: source))
-        for match in matches {
-            guard match.numberOfRanges > captureGroup else {
-                continue
-            }
-            let range = match.range(at: captureGroup)
-            guard let stringRange = Range(range, in: source),
-                  let attrRange = Range(stringRange, in: attributed) else {
-                continue
-            }
-            attributed[attrRange].foregroundColor = color
         }
     }
 }

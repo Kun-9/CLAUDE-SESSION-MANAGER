@@ -343,9 +343,10 @@ private extension ContentView {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Hook command")
                         .font(.subheadline.weight(.semibold))
-                    CodeBlockView(text: currentHookCommand() ?? "Unable to locate executable path.") {
-                        if let command = currentHookCommand() {
-                            copyToClipboard(command)
+                    CodeBlockView(text: ExecutableService.hookCommandPath() ?? "Unable to locate executable path.") {
+                        if let command = ExecutableService.hookCommandPath() {
+                            ClipboardService.copy(command)
+                            toastCenter.show("클립보드에 복사됨")
                             claudeStatus = "Hook command copied."
                         }
                     }
@@ -353,7 +354,8 @@ private extension ContentView {
                         .font(.subheadline.weight(.semibold))
                     CodeBlockView(text: hooksJSONSnippetText ?? "Unable to locate executable path.", maxHeight: 140, onCopy: hooksJSONSnippetText == nil ? nil : {
                         if let snippet = hooksJSONSnippetText {
-                            copyToClipboard(snippet)
+                            ClipboardService.copy(snippet)
+                            toastCenter.show("클립보드에 복사됨")
                             claudeStatus = "Hooks JSON copied."
                         }
                     })
@@ -369,7 +371,7 @@ private extension ContentView {
                         Button("Preview Changes") {
                             // 변경 미리보기 계산
                             let preview: (after: [PreviewLine], canApply: Bool, statusMessage: String?, error: String?)
-                            if let command = currentHookCommand() {
+                            if let command = ExecutableService.hookCommandPath() {
                                 preview = ClaudeSettingsService.buildHooksPreview(command: command)
                             } else {
                                 preview = ([], false, "Unable to resolve the app executable path.", "Unable to resolve the app executable path.")
@@ -400,7 +402,7 @@ private extension ContentView {
                             requestHookTest()
                         }
                         .buttonStyle(.bordered)
-                        .disabled(currentHookCommand() == nil)
+                        .disabled(ExecutableService.hookCommandPath() == nil)
                         .help("Send hook test")
                     }
 
@@ -424,7 +426,7 @@ private extension ContentView {
             .alert("Overwrite settings.json hooks?", isPresented: $showApplyConfirmation) {
                 Button("Cancel", role: .cancel) {}
                 Button("Apply Updates", role: .destructive) {
-                    if let command = currentHookCommand() {
+                    if let command = ExecutableService.hookCommandPath() {
                         claudeStatus = ClaudeSettingsService.updateHooks(command: command)
                     } else {
                         claudeStatus = "Unable to resolve the app executable path."
@@ -479,12 +481,7 @@ private extension ContentView {
 
     // 사운드 이름으로 미리듣기 재생
     func previewSound() {
-        let name = draftSoundName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        if let sound = NSSound(named: NSSound.Name(name)) {
-            sound.volume = Float(draftSoundVolume)
-            sound.play()
-        }
+        SoundService.play(name: draftSoundName, volume: draftSoundVolume)
     }
 
     // 텍스트 입력 포커스 해제
@@ -493,36 +490,16 @@ private extension ContentView {
         NSApp.keyWindow?.makeFirstResponder(nil)
     }
 
-    // 클립보드에 텍스트 복사
-    func copyToClipboard(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        toastCenter.show("클립보드에 복사됨")
-    }
-
-    // 앱 번들에 포함된 훅 CLI 경로 기반 훅 명령 구성
-    func currentHookCommand() -> String? {
-        let toolURL = Bundle.main.bundleURL
-            .appendingPathComponent("Contents")
-            .appendingPathComponent("Resources")
-            .appendingPathComponent("pty-claude-hook")
-        guard FileManager.default.isExecutableFile(atPath: toolURL.path) else {
-            return nil
-        }
-        return "\(toolURL.path)"
-    }
-
     // hooks에 실제로 설정될 JSON 스니펫
     var hooksJSONSnippetText: String? {
-        guard let command = currentHookCommand() else {
+        guard let command = ExecutableService.hookCommandPath() else {
             return nil
         }
         return ClaudeSettingsService.hooksJSONSnippet(command: command)
     }
 
     func refreshClaudeApplyState() {
-        guard let command = currentHookCommand() else {
+        guard let command = ExecutableService.hookCommandPath() else {
             claudeCanApply = false
             return
         }
@@ -530,104 +507,28 @@ private extension ContentView {
     }
 
     func requestHookTest() {
-        guard let command = currentHookCommand() else {
+        guard let command = ExecutableService.hookCommandPath() else {
             claudeStatus = "Unable to resolve the app executable path."
             return
         }
 
-        let eventName = hookTestEventName()
-        let toolName = hookTestToolName()
-        let cwd = hookTestCwd()
+        let settings = HookTestService.Settings(
+            preToolUseEnabled: storedPreToolUseEnabled,
+            stopEnabled: storedStopEnabled,
+            permissionEnabled: storedPermissionEnabled,
+            preToolUseTools: storedPreToolUseTools
+        )
 
         claudeStatus = "Sending hook test..."
         DispatchQueue.global(qos: .userInitiated).async {
-            let status = runHookTest(
+            let result = HookTestService.run(
                 command: command,
-                eventName: eventName,
-                toolName: toolName,
-                cwd: cwd,
-                sessionId: "hook-test"
+                sessionId: "hook-test",
+                settings: settings
             )
             DispatchQueue.main.async {
-                claudeStatus = status
+                claudeStatus = result.status
             }
-        }
-    }
-
-    func hookTestEventName() -> String {
-        if storedPreToolUseEnabled {
-            return "PreToolUse"
-        }
-        if storedStopEnabled {
-            return "Stop"
-        }
-        if storedPermissionEnabled {
-            return "PermissionRequest"
-        }
-        return "PreToolUse"
-    }
-
-    func hookTestToolName() -> String {
-        let tools = storedPreToolUseTools
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        let firstTool = tools.first { !$0.isEmpty }
-        return firstTool ?? "AskUserQuestion"
-    }
-
-    func hookTestCwd() -> String {
-        let current = FileManager.default.currentDirectoryPath
-        if current == "/" {
-            return FileManager.default.homeDirectoryForCurrentUser.path
-        }
-        return current
-    }
-
-    func runHookTest(
-        command: String,
-        eventName: String,
-        toolName: String,
-        cwd: String,
-        sessionId: String?
-    ) -> String {
-        var payload: [String: Any] = [
-            "hook_event_name": eventName,
-            "tool_name": toolName,
-            "cwd": cwd,
-        ]
-        if let sessionId, !sessionId.isEmpty {
-            payload["session_id"] = sessionId
-        }
-
-        do {
-            let data = try JSONSerialization.data(withJSONObject: payload, options: [])
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: command)
-            let inputPipe = Pipe()
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            process.standardInput = inputPipe
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-            try process.run()
-            inputPipe.fileHandleForWriting.write(data)
-            inputPipe.fileHandleForWriting.closeFile()
-            process.waitUntilExit()
-
-            if process.terminationStatus == 0 {
-                return "Hook test sent (\(eventName))."
-            }
-
-            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorText = String(data: errorData, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-
-            if let errorText, !errorText.isEmpty {
-                return "Hook test failed: \(errorText)"
-            }
-            return "Hook test failed with status \(process.terminationStatus)."
-        } catch {
-            return "Failed to run hook test: \(error.localizedDescription)"
         }
     }
 }

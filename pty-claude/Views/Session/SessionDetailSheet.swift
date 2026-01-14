@@ -94,8 +94,7 @@ struct SessionDetailSheet: View {
     }
 
     private func deleteSession() {
-        TranscriptArchiveStore.delete(sessionId: session.id)
-        SessionStore.deleteSession(sessionId: session.id)
+        viewModel.deleteSession()
         close()
     }
 
