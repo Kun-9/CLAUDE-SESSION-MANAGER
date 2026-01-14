@@ -5,12 +5,29 @@ struct TranscriptEntry: Identifiable, Codable {
     let role: TranscriptRole
     let text: String
     let createdAt: TimeInterval?
+    let entryType: String?
+    let messageRole: String?
+    let isMeta: Bool?
+    let messageContentIsString: Bool?
 
-    init(id: UUID = UUID(), role: TranscriptRole, text: String, createdAt: TimeInterval? = nil) {
+    init(
+        id: UUID = UUID(),
+        role: TranscriptRole,
+        text: String,
+        createdAt: TimeInterval? = nil,
+        entryType: String? = nil,
+        messageRole: String? = nil,
+        isMeta: Bool? = nil,
+        messageContentIsString: Bool? = nil
+    ) {
         self.id = id
         self.role = role
         self.text = text
         self.createdAt = createdAt
+        self.entryType = entryType
+        self.messageRole = messageRole
+        self.isMeta = isMeta
+        self.messageContentIsString = messageContentIsString
     }
 }
 
