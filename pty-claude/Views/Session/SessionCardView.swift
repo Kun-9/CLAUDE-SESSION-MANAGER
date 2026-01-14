@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SessionCardView: View {
     let session: SessionItem
+    @State private var cardWidth: CGFloat = 0
 
     var body: some View {
         HStack(spacing: 14) {
@@ -21,8 +22,11 @@ struct SessionCardView: View {
                 if session.lastPrompt != nil || session.lastResponse != nil {
                     SessionSummaryView(
                         prompt: session.lastPrompt,
-                        response: session.lastResponse,
-                        maxResponseCharacters: 60
+                        response: session.lastResponse
+                    )
+                    .frame(
+                        width: cardWidth > 0 ? cardWidth * 0.85 : nil,
+                        alignment: .leading
                     )
                 }
                 Text("Updated \(session.updatedText)")
@@ -33,21 +37,24 @@ struct SessionCardView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(LinearGradient(
-                    colors: [
-                        session.status.background,
-                        Color(NSColor.windowBackgroundColor),
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                ))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        )
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(LinearGradient(
+                        colors: [
+                            session.status.background,
+                            Color(NSColor.windowBackgroundColor),
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ))
+                GeometryReader { proxy in
+                    Color.clear
+                        .preference(key: SessionCardWidthKey.self, value: proxy.size.width)
+                }
+            }
+        }
+        .onPreferenceChange(SessionCardWidthKey.self) { cardWidth = $0 }
         .overlay(alignment: .bottomTrailing) {
             if session.status == .running {
                 RunningProgressIndicator(tint: session.status.tint)
@@ -55,6 +62,14 @@ struct SessionCardView: View {
                     .padding(.bottom, 10)
             }
         }
-        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
+        .hoverCardStyle(cornerRadius: 18)
+    }
+}
+
+private struct SessionCardWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }

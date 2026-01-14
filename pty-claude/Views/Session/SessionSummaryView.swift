@@ -12,20 +12,12 @@ struct SessionSummaryView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        Grid(alignment: .leading, horizontalSpacing: 4, verticalSpacing: 4) {
             if let prompt {
-                Text("Q: \(prompt)")
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                summaryRow(label: "Q", text: trimmed(prompt), color: .primary)
             }
             if let response {
-                Text("A: \(trimmed(response))")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                summaryRow(label: "A", text: trimmed(response), color: .secondary)
             }
         }
     }
@@ -37,5 +29,21 @@ struct SessionSummaryView: View {
         let cutoff = max(0, maxResponseCharacters - 3)
         let prefix = value.prefix(cutoff)
         return "\(prefix)..."
+    }
+
+    @ViewBuilder
+    private func summaryRow(label: String, text: String, color: Color) -> some View {
+        GridRow {
+            Text("\(label):")
+                .font(.subheadline)
+                .foregroundStyle(color)
+                .gridColumnAlignment(.trailing)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .gridColumnAlignment(.leading)
+        }
     }
 }
