@@ -12,6 +12,7 @@ enum SettingsKeys {
     static let debugEnabled = "debug.enabled"
     static let debugLogs = "debug.logs"
     static let sessionListMode = "session.list.mode"
+    static let sessionLayoutMode = "session.layout.mode"
     static let sessionCollapsedSections = "session.collapsed.sections"
 }
 
@@ -32,6 +33,7 @@ enum SettingsStore {
                 SettingsKeys.soundVolume: 1.0,
                 SettingsKeys.debugEnabled: false,
                 SettingsKeys.sessionListMode: "By Location",
+                SettingsKeys.sessionLayoutMode: "List",
                 SettingsKeys.sessionCollapsedSections: "[]",
             ]
         )

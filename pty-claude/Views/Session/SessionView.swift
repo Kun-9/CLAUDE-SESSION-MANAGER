@@ -1,3 +1,8 @@
+// MARK: - 파일 설명
+// SessionView: 세션 탭 메인 뷰
+// - 그룹핑 모드(All/By Location)와 레이아웃 모드(List/Grid) 조합
+// - 4가지 모드 조합 지원: All+List, All+Grid, ByLocation+List, ByLocation+Grid
+
 import Foundation
 import SwiftUI
 
@@ -13,42 +18,91 @@ struct SessionView: View {
                     subtitle: "Manage your claude-code sessions."
                 )
 
-                SessionListModePicker(selection: $viewModel.listMode)
+                // 컨트롤 영역: 그룹핑 모드 + 레이아웃 모드
+                HStack(spacing: 16) {
+                    SessionListModePicker(selection: $viewModel.listMode)
+                    Spacer()
+                    SessionLayoutToggle(selection: $viewModel.layoutMode)
+                }
 
-                if viewModel.listMode == .all {
-                    LazyVStack(spacing: 12) {
-                        ForEach(viewModel.sessions) { session in
-                            sessionButton(for: session)
-                        }
+                // 콘텐츠 영역: 모드 조합에 따른 렌더링
+                sessionContent
+            }
+            .padding(24)
+        }
+    }
+
+    // MARK: - Content Views
+
+    @ViewBuilder
+    private var sessionContent: some View {
+        switch (viewModel.listMode, viewModel.layoutMode) {
+        case (.all, .list):
+            // All + List: 전체 세션 리스트
+            allListView
+        case (.all, .grid):
+            // All + Grid: 전체 세션 격자
+            allGridView
+        case (.byLocation, .list):
+            // By Location + List: 섹션별 리스트
+            sectionListView
+        case (.byLocation, .grid):
+            // By Location + Grid: 섹션별 격자
+            sectionGridView
+        }
+    }
+
+    @ViewBuilder
+    private var allListView: some View {
+        LazyVStack(spacing: 12) {
+            ForEach(viewModel.sessions) { session in
+                sessionButton(for: session)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var allGridView: some View {
+        SessionGridView(sessions: viewModel.sessions) { session in
+            selectedSession = session
+        }
+    }
+
+    @ViewBuilder
+    private var sectionListView: some View {
+        LazyVStack(spacing: 16) {
+            ForEach(viewModel.sessionSections) { section in
+                VStack(alignment: .leading, spacing: 10) {
+                    Button {
+                        viewModel.toggleSection(section.id)
+                    } label: {
+                        SessionSectionHeader(
+                            title: section.title,
+                            subtitle: section.subtitle,
+                            count: section.sessions.count,
+                            isCollapsed: viewModel.isSectionCollapsed(section.id)
+                        )
                     }
-                } else {
-                    LazyVStack(spacing: 16) {
-                        ForEach(viewModel.sessionSections) { section in
-                            VStack(alignment: .leading, spacing: 10) {
-                                Button {
-                                    viewModel.toggleSection(section.id)
-                                } label: {
-                                    SessionSectionHeader(
-                                        title: section.title,
-                                        subtitle: section.subtitle,
-                                        count: section.sessions.count,
-                                        isCollapsed: viewModel.isSectionCollapsed(section.id)
-                                    )
-                                }
-                                .buttonStyle(.plain)
+                    .buttonStyle(.plain)
 
-                                if !viewModel.isSectionCollapsed(section.id) {
-                                    ForEach(section.sessions) { session in
-                                        sessionButton(for: session)
-                                    }
-                                }
-                            }
+                    if !viewModel.isSectionCollapsed(section.id) {
+                        ForEach(section.sessions) { session in
+                            sessionButton(for: session)
                         }
                     }
                 }
             }
-            .padding(24)
         }
+    }
+
+    @ViewBuilder
+    private var sectionGridView: some View {
+        SessionSectionGridView(
+            sections: viewModel.sessionSections,
+            collapsedIds: viewModel.collapsedSectionIds,
+            onToggleSection: { viewModel.toggleSection($0) },
+            onSelectSession: { selectedSession = $0 }
+        )
     }
 
     @ViewBuilder
@@ -56,11 +110,13 @@ struct SessionView: View {
         Button {
             selectedSession = session
         } label: {
-            SessionCardView(session: session)
+            SessionCardView(session: session, style: .full)
         }
         .buttonStyle(.plain)
     }
 }
+
+// MARK: - 그룹핑 모드 피커
 
 private struct SessionListModePicker: View {
     @Binding var selection: SessionListMode
@@ -73,5 +129,43 @@ private struct SessionListModePicker: View {
         }
         .pickerStyle(.segmented)
         .frame(maxWidth: 320)
+    }
+}
+
+// MARK: - 레이아웃 모드 토글
+
+private struct SessionLayoutToggle: View {
+    @Binding var selection: SessionLayoutMode
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(SessionLayoutMode.allCases) { mode in
+                Button {
+                    selection = mode
+                } label: {
+                    Image(systemName: mode.icon)
+                        .font(.system(size: 14, weight: .medium))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .background(
+                    selection == mode
+                        ? Color(NSColor.controlBackgroundColor)
+                        : Color.clear
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .foregroundStyle(selection == mode ? .primary : .tertiary)
+            }
+        }
+        .padding(3)
+        .background {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+        }
     }
 }
