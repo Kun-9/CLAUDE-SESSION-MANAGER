@@ -161,6 +161,7 @@ enum ClaudeSettingsService {
             "SessionStart": hookEntry + resumeEntry,
             "SessionEnd": hookEntry,
             "UserPromptSubmit": hookEntry,
+            "PostToolUse": hookEntry,
         ]
     }
 

@@ -27,15 +27,17 @@ enum TranscriptArchiveService {
         }
 
         let summary = buildSummary(from: entries)
+        let mergedEntries = mergeWithExisting(sessionId: trimmedId, newEntries: entries)
+        let mergedSummary = buildSummary(from: mergedEntries)
         let transcript = SessionTranscript(
             sessionId: trimmedId,
-            entries: entries,
+            entries: mergedEntries,
             archivedAt: Date().timeIntervalSince1970,
-            lastPrompt: summary.lastPrompt,
-            lastResponse: summary.lastResponse
+            lastPrompt: mergedSummary.lastPrompt,
+            lastResponse: mergedSummary.lastResponse
         )
         TranscriptArchiveStore.save(transcript)
-        return summary
+        return mergedSummary
     }
 
     // JSONL 파일을 파싱해 엔트리 목록 생성
@@ -67,9 +69,11 @@ enum TranscriptArchiveService {
             return nil
         }
 
+        let entryType = stringValue(dict["type"])
+        let messageRole = stringValue((dict["message"] as? [String: Any])?["role"])
         let roleValue = stringValue(dict["role"])
-            ?? stringValue(dict["type"])
-            ?? stringValue((dict["message"] as? [String: Any])?["role"])
+            ?? entryType
+            ?? messageRole
         let role = TranscriptRole(rawValue: roleValue)
         let text = extractText(from: dict)
 
@@ -79,7 +83,17 @@ enum TranscriptArchiveService {
 
         let createdAt = timestampValue(dict["created_at"])
             ?? timestampValue(dict["timestamp"])
-        return TranscriptEntry(role: role, text: text, createdAt: createdAt)
+        let isMeta = dict["isMeta"] as? Bool
+        let messageContentIsString = (dict["message"] as? [String: Any])?["content"] is String
+        return TranscriptEntry(
+            role: role,
+            text: text,
+            createdAt: createdAt,
+            entryType: entryType,
+            messageRole: messageRole,
+            isMeta: isMeta,
+            messageContentIsString: messageContentIsString
+        )
     }
 
     // 다양한 포맷에서 텍스트 추출
@@ -186,5 +200,36 @@ enum TranscriptArchiveService {
             lastPrompt: lastPrompt,
             lastResponse: lastResponse
         )
+    }
+
+    private static func mergeWithExisting(sessionId: String, newEntries: [TranscriptEntry]) -> [TranscriptEntry] {
+        guard let existing = TranscriptArchiveStore.load(sessionId: sessionId) else {
+            return newEntries
+        }
+
+        var seen = Set<String>()
+        func key(for entry: TranscriptEntry) -> String {
+            let timestamp = entry.createdAt.map { String($0) } ?? "nil"
+            return "\(entry.role.rawValue)|\(timestamp)|\(entry.text)"
+        }
+
+        let combined = existing.entries + newEntries
+        var merged: [TranscriptEntry] = []
+        merged.reserveCapacity(combined.count)
+        for entry in combined {
+            let entryKey = key(for: entry)
+            if seen.insert(entryKey).inserted {
+                merged.append(entry)
+            }
+        }
+
+        return merged.sorted { (lhs, rhs) in
+            let left = lhs.createdAt ?? 0
+            let right = rhs.createdAt ?? 0
+            if left == right {
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            return left < right
+        }
     }
 }
