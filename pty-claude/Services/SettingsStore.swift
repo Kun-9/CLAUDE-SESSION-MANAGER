@@ -9,6 +9,10 @@ enum SettingsKeys {
     static let soundEnabled = "sound.enabled"
     static let soundName = "sound.name"
     static let soundVolume = "sound.volume"
+    static let debugEnabled = "debug.enabled"
+    static let debugLogs = "debug.logs"
+    static let sessionListMode = "session.list.mode"
+    static let sessionCollapsedSections = "session.collapsed.sections"
 }
 
 enum SettingsStore {
@@ -26,6 +30,9 @@ enum SettingsStore {
                 SettingsKeys.soundEnabled: true,
                 SettingsKeys.soundName: "Glass",
                 SettingsKeys.soundVolume: 1.0,
+                SettingsKeys.debugEnabled: false,
+                SettingsKeys.sessionListMode: "By Location",
+                SettingsKeys.sessionCollapsedSections: "[]",
             ]
         )
     }
@@ -69,6 +76,41 @@ enum SettingsStore {
     static func soundVolume() -> Double {
         let value = defaults.double(forKey: SettingsKeys.soundVolume)
         return value.clamped(to: 0.0...1.0)
+    }
+
+    // 디버그 로그 기록 여부
+    static func debugEnabled() -> Bool {
+        defaults.bool(forKey: SettingsKeys.debugEnabled)
+    }
+
+    // 디버그 로그 로드
+    static func loadDebugLogs() -> [DebugLogEntry] {
+        guard let data = defaults.data(forKey: SettingsKeys.debugLogs) else {
+            return []
+        }
+        return (try? JSONDecoder().decode([DebugLogEntry].self, from: data)) ?? []
+    }
+
+    // 디버그 로그 저장
+    static func saveDebugLogs(_ logs: [DebugLogEntry]) {
+        guard let data = try? JSONEncoder().encode(logs) else {
+            return
+        }
+        defaults.set(data, forKey: SettingsKeys.debugLogs)
+    }
+
+    // 디버그 로그 추가 (최근 200개 유지)
+    static func appendDebugLog(_ entry: DebugLogEntry, maxEntries: Int = 200) {
+        var logs = loadDebugLogs()
+        logs.append(entry)
+        if logs.count > maxEntries {
+            logs.removeFirst(logs.count - maxEntries)
+        }
+        saveDebugLogs(logs)
+    }
+
+    static func clearDebugLogs() {
+        defaults.removeObject(forKey: SettingsKeys.debugLogs)
     }
 }
 
