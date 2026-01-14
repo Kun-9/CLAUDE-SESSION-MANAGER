@@ -14,14 +14,9 @@ struct SessionView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                SectionHeaderView(
-                    title: "Session",
-                    subtitle: "Manage your claude-code sessions."
-                )
-
                 // 컨트롤 영역: 그룹핑 모드 + 레이아웃 모드
-                HStack(spacing: 16) {
-                    SessionListModePicker(selection: $viewModel.listMode)
+                HStack(spacing: 12) {
+                    SessionListModeToggle(selection: $viewModel.listMode)
                     Spacer()
                     SessionLayoutToggle(selection: $viewModel.layoutMode)
                 }
@@ -141,19 +136,42 @@ struct SessionView: View {
     }
 }
 
-// MARK: - 그룹핑 모드 피커
+// MARK: - 그룹핑 모드 토글
 
-private struct SessionListModePicker: View {
+private struct SessionListModeToggle: View {
     @Binding var selection: SessionListMode
 
     var body: some View {
-        Picker("Session view", selection: $selection) {
+        HStack(spacing: 2) {
             ForEach(SessionListMode.allCases) { mode in
-                Text(mode.rawValue).tag(mode)
+                Button {
+                    selection = mode
+                } label: {
+                    Text(mode.rawValue)
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(height: 28)
+                        .padding(.horizontal, 12)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .background(
+                    selection == mode
+                        ? Color(NSColor.controlBackgroundColor)
+                        : Color.clear
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .foregroundStyle(selection == mode ? .primary : .tertiary)
             }
         }
-        .pickerStyle(.segmented)
-        .frame(maxWidth: 320)
+        .padding(3)
+        .background {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+        }
     }
 }
 
@@ -169,8 +187,8 @@ private struct SessionLayoutToggle: View {
                     selection = mode
                 } label: {
                     Image(systemName: mode.icon)
-                        .font(.system(size: 14, weight: .medium))
-                        .frame(width: 32, height: 32)
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
