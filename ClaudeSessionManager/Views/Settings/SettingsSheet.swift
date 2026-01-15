@@ -1,6 +1,6 @@
 // MARK: - 파일 설명
 // SettingsSheet: 설정 시트 메인 뷰
-// - Notifications, Claude, Debug 탭으로 구성
+// - Notifications, Terminal, Hooks, Debug 탭으로 구성
 // - ContentView에서 시트로 표시
 
 import SwiftUI
@@ -150,8 +150,8 @@ struct SettingsSheet: View {
             notificationsView
         case .terminal:
             terminalView
-        case .claude:
-            claudeView
+        case .hooks:
+            hooksView
         case .debug:
             debugView
         }
@@ -326,12 +326,12 @@ struct SettingsSheet: View {
         .simultaneousGesture(TapGesture().onEnded { dismissFocus() })
     }
 
-    // MARK: - Claude View
+    // MARK: - Hooks View
 
-    private var claudeView: some View {
+    private var hooksView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                SectionHeaderView(title: "Claude", subtitle: "Update Claude hooks to call this app.")
+                SectionHeaderView(title: "Hooks", subtitle: "Update Claude hooks to call this app.")
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Hook command")
@@ -500,7 +500,7 @@ struct SettingsSheet: View {
 private enum SettingsTab: String, CaseIterable, Identifiable {
     case notifications = "Notifications"
     case terminal = "Terminal"
-    case claude = "Claude"
+    case hooks = "Hooks"
     case debug = "Debug"
 
     var id: String { rawValue }
@@ -511,7 +511,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .notifications: return "bell"
         case .terminal: return "rectangle.on.rectangle"
-        case .claude: return "terminal"
+        case .hooks: return "terminal"
         case .debug: return "ladybug"
         }
     }
