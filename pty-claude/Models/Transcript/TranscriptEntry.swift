@@ -9,6 +9,8 @@ struct TranscriptEntry: Identifiable, Codable {
     let messageRole: String?
     let isMeta: Bool?
     let messageContentIsString: Bool?
+    /// API 요청 ID (같은 요청의 스트리밍 응답 구분용)
+    let requestId: String?
 
     init(
         id: UUID = UUID(),
@@ -18,7 +20,8 @@ struct TranscriptEntry: Identifiable, Codable {
         entryType: String? = nil,
         messageRole: String? = nil,
         isMeta: Bool? = nil,
-        messageContentIsString: Bool? = nil
+        messageContentIsString: Bool? = nil,
+        requestId: String? = nil
     ) {
         self.id = id
         self.role = role
@@ -28,6 +31,7 @@ struct TranscriptEntry: Identifiable, Codable {
         self.messageRole = messageRole
         self.isMeta = isMeta
         self.messageContentIsString = messageContentIsString
+        self.requestId = requestId
     }
 }
 
