@@ -137,6 +137,12 @@ final class SessionListViewModel: ObservableObject {
         loadSessions()
     }
 
+    /// 세션 라벨(이름) 변경
+    func renameSession(_ session: SessionItem, to newLabel: String) {
+        SessionStore.updateSessionLabel(sessionId: session.id, newLabel: newLabel)
+        loadSessions()
+    }
+
     /// 필터링된 세션 목록 (빈 필터 = 전체 표시)
     var filteredSessions: [SessionItem] {
         if statusFilters.isEmpty {

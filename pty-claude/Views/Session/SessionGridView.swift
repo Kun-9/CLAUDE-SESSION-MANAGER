@@ -11,6 +11,7 @@ struct SessionGridView: View {
     let sessions: [SessionItem]
     let onSelect: (SessionItem) -> Void
     var onDelete: ((SessionItem) -> Void)?
+    var onRename: ((SessionItem) -> Void)?
     var onChangeStatus: ((SessionItem, SessionStatus) -> Void)?
 
     /// 적응형 격자 열 정의 (최소 120pt, 최대 160pt)
@@ -36,6 +37,7 @@ struct SessionGridView: View {
                     SessionContextMenu(
                         session: session,
                         onChangeStatus: onChangeStatus,
+                        onRename: onRename,
                         onDelete: onDelete
                     )
                 }
@@ -51,6 +53,7 @@ struct SessionSectionGridView: View {
     let onToggleSection: (String) -> Void
     let onSelectSession: (SessionItem) -> Void
     var onDeleteSession: ((SessionItem) -> Void)?
+    var onRenameSession: ((SessionItem) -> Void)?
     var onChangeStatus: ((SessionItem, SessionStatus) -> Void)?
 
     private let columns = [
@@ -99,6 +102,7 @@ struct SessionSectionGridView: View {
                                     SessionContextMenu(
                                         session: session,
                                         onChangeStatus: onChangeStatus,
+                                        onRename: onRenameSession,
                                         onDelete: onDeleteSession
                                     )
                                 }
@@ -113,10 +117,11 @@ struct SessionSectionGridView: View {
 
 // MARK: - 세션 컨텍스트 메뉴
 
-/// 세션 카드 우클릭 컨텍스트 메뉴 (상태 변경 + 삭제)
+/// 세션 카드 우클릭 컨텍스트 메뉴 (상태 변경 + 이름 변경 + 삭제)
 struct SessionContextMenu: View {
     let session: SessionItem
     var onChangeStatus: ((SessionItem, SessionStatus) -> Void)?
+    var onRename: ((SessionItem) -> Void)?
     var onDelete: ((SessionItem) -> Void)?
 
     var body: some View {
@@ -135,6 +140,12 @@ struct SessionContextMenu: View {
         .disabled(session.status == .ended)
 
         Divider()
+
+        Button {
+            onRename?(session)
+        } label: {
+            Label("이름 변경", systemImage: "pencil")
+        }
 
         Button {
             ITermService.resumeSession(sessionId: session.id, location: session.location)

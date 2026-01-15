@@ -242,6 +242,40 @@ enum SessionStore {
         return compact.isEmpty ? nil : compact
     }
 
+    /// 세션 라벨(이름) 업데이트
+    /// - Parameters:
+    ///   - sessionId: 세션 ID
+    ///   - newLabel: 새 라벨 (빈 문자열이면 무시)
+    static func updateSessionLabel(sessionId: String?, newLabel: String) {
+        let trimmedId = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmedLabel = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedId.isEmpty, !trimmedLabel.isEmpty else {
+            return
+        }
+
+        var sessions = loadSessions()
+        guard let index = sessions.firstIndex(where: { $0.id == trimmedId }) else {
+            return
+        }
+
+        let existing = sessions[index]
+        let updated = SessionRecord(
+            id: existing.id,
+            name: trimmedLabel,
+            detail: existing.detail,
+            location: existing.location,
+            status: existing.status,
+            updatedAt: existing.updatedAt,
+            startedAt: existing.startedAt,
+            duration: existing.duration,
+            lastPrompt: existing.lastPrompt,
+            lastResponse: existing.lastResponse
+        )
+
+        sessions[index] = updated
+        saveSessions(sessions)
+    }
+
     // 세션과 메타데이터 삭제
     static func deleteSession(sessionId: String?) {
         let trimmedId = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

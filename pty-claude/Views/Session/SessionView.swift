@@ -10,6 +10,7 @@ struct SessionView: View {
     @StateObject private var viewModel = SessionListViewModel()
     @Binding var selectedSession: SessionItem?
     @State private var sessionToDelete: SessionItem?
+    @State private var sessionToRename: SessionItem?
 
     var body: some View {
         ScrollView {
@@ -40,6 +41,11 @@ struct SessionView: View {
             }
         } message: { session in
             Text("'\(session.name)' 세션을 삭제하시겠습니까?\n아카이브된 대화 기록도 함께 삭제됩니다.")
+        }
+        .sheet(item: $sessionToRename) { session in
+            SessionLabelEditSheet(session: session) { newLabel in
+                viewModel.renameSession(session, to: newLabel)
+            }
         }
     }
 
@@ -78,6 +84,7 @@ struct SessionView: View {
             sessions: viewModel.filteredSessions,
             onSelect: { selectedSession = $0 },
             onDelete: { sessionToDelete = $0 },
+            onRename: { sessionToRename = $0 },
             onChangeStatus: { session, status in
                 viewModel.changeSessionStatus(session, to: status)
             }
@@ -119,6 +126,7 @@ struct SessionView: View {
             onToggleSection: { viewModel.toggleSection($0) },
             onSelectSession: { selectedSession = $0 },
             onDeleteSession: { sessionToDelete = $0 },
+            onRenameSession: { sessionToRename = $0 },
             onChangeStatus: { session, status in
                 viewModel.changeSessionStatus(session, to: status)
             }
@@ -159,6 +167,12 @@ struct SessionView: View {
         .disabled(session.status == .ended)
 
         Divider()
+
+        Button {
+            sessionToRename = session
+        } label: {
+            Label("이름 변경", systemImage: "pencil")
+        }
 
         Button {
             ITermService.resumeSession(sessionId: session.id, location: session.location)
