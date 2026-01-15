@@ -17,7 +17,7 @@ struct SessionView: View {
                 // 컨트롤 영역: 그룹핑 모드 + 필터 + 레이아웃 모드
                 HStack(spacing: 12) {
                     SessionListModeToggle(selection: $viewModel.listMode)
-                    SessionStatusFilterToggle(selection: $viewModel.statusFilter)
+                    SessionStatusFilterToggle(selection: $viewModel.statusFilters)
                     Spacer()
                     SessionLayoutToggle(selection: $viewModel.layoutMode)
                 }
@@ -77,7 +77,10 @@ struct SessionView: View {
         SessionGridView(
             sessions: viewModel.filteredSessions,
             onSelect: { selectedSession = $0 },
-            onDelete: { sessionToDelete = $0 }
+            onDelete: { sessionToDelete = $0 },
+            onChangeStatus: { session, status in
+                viewModel.changeSessionStatus(session, to: status)
+            }
         )
     }
 
@@ -115,32 +118,68 @@ struct SessionView: View {
             collapsedIds: viewModel.collapsedSectionIds,
             onToggleSection: { viewModel.toggleSection($0) },
             onSelectSession: { selectedSession = $0 },
-            onDeleteSession: { sessionToDelete = $0 }
+            onDeleteSession: { sessionToDelete = $0 },
+            onChangeStatus: { session, status in
+                viewModel.changeSessionStatus(session, to: status)
+            }
         )
     }
 
     @ViewBuilder
     private func sessionButton(for session: SessionItem) -> some View {
         Button {
+            // 클릭 시 확인됨으로 표시
+            if session.isUnseen {
+                SessionStore.markSessionAsSeen(sessionId: session.id)
+            }
             selectedSession = session
         } label: {
             SessionCardView(session: session, style: .full)
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button(role: .destructive) {
-                sessionToDelete = session
-            } label: {
-                Label("삭제", systemImage: "trash")
-            }
+            sessionStatusMenu(for: session)
+        }
+    }
+
+    @ViewBuilder
+    private func sessionStatusMenu(for session: SessionItem) -> some View {
+        Button {
+            viewModel.changeSessionStatus(session, to: .finished)
+        } label: {
+            Label("완료로 변경", systemImage: "checkmark.circle")
+        }
+        .disabled(session.status == .finished)
+
+        Button {
+            viewModel.changeSessionStatus(session, to: .ended)
+        } label: {
+            Label("종료로 변경", systemImage: "xmark.circle")
+        }
+        .disabled(session.status == .ended)
+
+        Divider()
+
+        Button {
+            ITermService.resumeSession(sessionId: session.id, location: session.location)
+        } label: {
+            Label("대화 이어하기", systemImage: "terminal")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            sessionToDelete = session
+        } label: {
+            Label("삭제", systemImage: "trash")
         }
     }
 }
 
-// MARK: - 상태 필터 토글
+// MARK: - 상태 필터 토글 (다중 선택)
 
 private struct SessionStatusFilterToggle: View {
-    @Binding var selection: SessionStatusFilter
+    @Binding var selection: Set<SessionStatusFilter>
 
     var body: some View {
         HStack(spacing: 2) {
@@ -161,9 +200,14 @@ private struct SessionStatusFilterToggle: View {
 
     @ViewBuilder
     private func filterButton(for filter: SessionStatusFilter) -> some View {
-        let isSelected = selection == filter
+        let isSelected = selection.contains(filter)
         Button {
-            selection = filter
+            // 토글 동작: 선택/해제
+            if selection.contains(filter) {
+                selection.remove(filter)
+            } else {
+                selection.insert(filter)
+            }
         } label: {
             Text(filter.rawValue)
                 .font(.system(size: 12, weight: .medium))

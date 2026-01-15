@@ -17,6 +17,7 @@ struct SessionCardView: View {
     let session: SessionItem
     let style: SessionCardStyle
     @State private var cardWidth: CGFloat = 0
+    @State private var isGlowing = false
 
     /// 기본 생성자 (기존 코드 호환성)
     init(session: SessionItem, style: SessionCardStyle = .full) {
@@ -98,6 +99,26 @@ struct SessionCardView: View {
                     .padding(.bottom, 10)
             }
         }
+        .overlay {
+            // 미확인 완료 세션에 반짝이는 테두리
+            if session.isUnseen {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(
+                        session.status.tint,
+                        lineWidth: isGlowing ? 2 : 1
+                    )
+                    .opacity(isGlowing ? 1.0 : 0.3)
+                    .animation(
+                        .easeInOut(duration: 1.2).repeatForever(autoreverses: true),
+                        value: isGlowing
+                    )
+            }
+        }
+        .onAppear {
+            if session.isUnseen {
+                isGlowing = true
+            }
+        }
         .hoverCardStyle(cornerRadius: 18)
     }
 
@@ -170,7 +191,16 @@ struct SessionCardView: View {
         }
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(session.status.tint.opacity(0.3), lineWidth: 1)
+                .strokeBorder(
+                    session.status.tint.opacity(session.isUnseen ? (isGlowing ? 1.0 : 0.3) : 0.3),
+                    lineWidth: session.isUnseen && isGlowing ? 2 : 1
+                )
+                .animation(
+                    session.isUnseen
+                        ? .easeInOut(duration: 1.2).repeatForever(autoreverses: true)
+                        : .default,
+                    value: isGlowing
+                )
         }
         .hoverCardStyle(cornerRadius: 10)
     }
@@ -240,5 +270,82 @@ private struct SessionCardWidthKey: PreferenceKey {
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
+    }
+}
+
+// MARK: - Command+Hover 재생 오버레이
+
+/// Command 키를 누른 상태에서 hover 시 재생 버튼을 표시하는 modifier
+struct CommandHoverResumeOverlay: ViewModifier {
+    let session: SessionItem
+    let cornerRadius: CGFloat
+
+    @State private var isHovering = false
+    @State private var isCommandPressed = false
+    @State private var eventMonitor: Any?
+
+    private var showOverlay: Bool {
+        isHovering && isCommandPressed
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .blur(radius: showOverlay ? 2 : 0)
+            .overlay {
+                resumeOverlay
+                    .opacity(showOverlay ? 1 : 0)
+            }
+            .animation(.easeInOut(duration: 0.15), value: showOverlay)
+            .onHover { hovering in
+                isHovering = hovering
+            }
+            .onAppear {
+                startMonitoringCommand()
+            }
+            .onDisappear {
+                stopMonitoringCommand()
+            }
+    }
+
+    @ViewBuilder
+    private var resumeOverlay: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color(NSColor.windowBackgroundColor).opacity(0.5))
+            .overlay {
+                VStack(spacing: 6) {
+                    Image(systemName: "play.fill")
+                        .font(.title2)
+                        .foregroundStyle(.primary)
+                    Text("대화 이어하기")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .onTapGesture {
+                ITermService.resumeSession(sessionId: session.id, location: session.location)
+            }
+            .allowsHitTesting(showOverlay)
+    }
+
+    private func startMonitoringCommand() {
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged]) { event in
+            isCommandPressed = event.modifierFlags.contains(.command)
+            return event
+        }
+    }
+
+    private func stopMonitoringCommand() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+    }
+}
+
+extension View {
+    /// Command 키를 누른 상태에서 hover 시 재생 오버레이 표시
+    func commandHoverResume(session: SessionItem, cornerRadius: CGFloat) -> some View {
+        modifier(CommandHoverResumeOverlay(session: session, cornerRadius: cornerRadius))
     }
 }

@@ -84,6 +84,7 @@ enum TranscriptArchiveService {
             ?? timestampValue(dict["timestamp"])
         let isMeta = dict["isMeta"] as? Bool
         let messageContentIsString = (dict["message"] as? [String: Any])?["content"] is String
+        let requestId = stringValue(dict["requestId"])
         return TranscriptEntry(
             role: role,
             text: text,
@@ -91,7 +92,8 @@ enum TranscriptArchiveService {
             entryType: entryType,
             messageRole: messageRole,
             isMeta: isMeta,
-            messageContentIsString: messageContentIsString
+            messageContentIsString: messageContentIsString,
+            requestId: requestId
         )
     }
 
@@ -193,7 +195,7 @@ enum TranscriptArchiveService {
 
     // 세션 요약 생성 (필터링된 항목 기준)
     private static func buildSummary(from entries: [TranscriptEntry]) -> Summary {
-        let filtered = TranscriptFilter.filteredEntries(entries, showFullTranscript: false)
+        let filtered = TranscriptFilter.filteredEntries(entries, showDetail: false)
         let lastPrompt = filtered.last(where: { $0.role == .user })?.text
         let lastResponse = filtered.last(where: { $0.role == .assistant })?.text
         return Summary(
@@ -213,7 +215,8 @@ enum TranscriptArchiveService {
             return "\(entry.role.rawValue)|\(timestamp)|\(entry.text)"
         }
 
-        let combined = existing.entries + newEntries
+        // 새 엔트리 우선 (requestId 등 새 필드 반영)
+        let combined = newEntries + existing.entries
         var merged: [TranscriptEntry] = []
         merged.reserveCapacity(combined.count)
         for entry in combined {

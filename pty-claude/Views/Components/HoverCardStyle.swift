@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct HoverCardStyle: ViewModifier {
@@ -28,17 +27,6 @@ struct HoverCardStyle: ViewModifier {
             .onHover { hovering in
                 withAnimation(.easeOut(duration: 0.15)) {
                     isHovered = hovering
-                }
-                if hovering {
-                    NSCursor.pointingHand.set()
-                } else {
-                    NSCursor.arrow.set()
-                }
-            }
-            .onDisappear {
-                if isHovered {
-                    NSCursor.arrow.set()
-                    isHovered = false
                 }
             }
     }

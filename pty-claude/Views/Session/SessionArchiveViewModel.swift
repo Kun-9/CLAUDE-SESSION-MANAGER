@@ -77,8 +77,9 @@ final class SessionArchiveViewModel: ObservableObject {
         archiveSizeText = formattedArchiveSize()
     }
 
-    // 세션 삭제 (아카이브 + 세션 레코드 모두 삭제)
+    // 세션 삭제 (Claude Code 세션 파일 + 아카이브 + 세션 레코드 모두 삭제)
     func deleteSession() {
+        ClaudeSessionService.deleteSession(sessionId: sessionId, location: currentSession?.location)
         TranscriptArchiveStore.delete(sessionId: sessionId)
         SessionStore.deleteSession(sessionId: sessionId)
     }

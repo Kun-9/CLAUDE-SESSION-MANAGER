@@ -72,6 +72,10 @@ private extension ContentView {
                     hasLoadedDrafts = true
                 }
                 NSApp.appearance = NSAppearance(named: useDarkMode ? .darkAqua : .aqua)
+                // 창 제목 설정
+                DispatchQueue.main.async {
+                    NSApp.mainWindow?.title = "CLAUDE SESSION MANAGER"
+                }
             }
             .onChange(of: useDarkMode) { _, newValue in
                 NSApp.appearance = NSAppearance(named: newValue ? .darkAqua : .aqua)

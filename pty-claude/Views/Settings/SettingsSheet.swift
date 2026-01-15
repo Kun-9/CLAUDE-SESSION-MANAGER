@@ -83,6 +83,12 @@ struct SettingsSheet: View {
         }
         .frame(width: 560, height: 520)
         .background(Color(NSColor.windowBackgroundColor))
+        .onAppear {
+            // 시트 표시 후 시스템 auto-focus 해제
+            DispatchQueue.main.async {
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+        }
         .sheet(isPresented: $showClaudePreview) {
             ClaudePreviewSheet(
                 afterLines: previewAfterLines,
@@ -319,12 +325,12 @@ struct SettingsSheet: View {
                                 .disabled(true)
                         }
 
-                        Button("Test") {
+                        Button("Noti Test") {
                             requestHookTest()
                         }
                         .buttonStyle(.bordered)
                         .disabled(ExecutableService.hookCommandPath() == nil)
-                        .help("Send hook test")
+                        .help("Send notification test")
                     }
 
                     Text(claudeStatus)

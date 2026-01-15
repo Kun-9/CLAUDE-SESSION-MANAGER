@@ -34,9 +34,8 @@ enum SessionLayoutMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// 세션 상태 필터
-enum SessionStatusFilter: String, CaseIterable, Identifiable {
-    case all = "전체"
+/// 세션 상태 필터 (다중 선택 가능)
+enum SessionStatusFilter: String, CaseIterable, Identifiable, Codable {
     case running = "진행중"
     case finished = "완료"
     case ended = "종료"
@@ -46,7 +45,6 @@ enum SessionStatusFilter: String, CaseIterable, Identifiable {
     /// 해당 필터에 포함되는 상태들
     func matches(_ status: SessionStatus) -> Bool {
         switch self {
-        case .all: return true
         case .running: return status == .running || status == .permission
         case .finished: return status == .finished
         case .ended: return status == .ended
@@ -56,7 +54,6 @@ enum SessionStatusFilter: String, CaseIterable, Identifiable {
     /// 필터 선택 시 색상
     var tint: Color {
         switch self {
-        case .all: return .primary
         case .running: return .green
         case .finished: return .blue
         case .ended: return .red
@@ -66,7 +63,6 @@ enum SessionStatusFilter: String, CaseIterable, Identifiable {
     /// 필터 선택 시 배경색
     var background: Color {
         switch self {
-        case .all: return Color(NSColor.controlBackgroundColor)
         case .running: return .green.opacity(0.15)
         case .finished: return .blue.opacity(0.15)
         case .ended: return .red.opacity(0.15)
@@ -87,7 +83,8 @@ final class SessionListViewModel: ObservableObject {
     @Published var layoutMode: SessionLayoutMode = .list {
         didSet { saveLayoutMode() }
     }
-    @Published var statusFilter: SessionStatusFilter = .all {
+    /// 선택된 상태 필터들 (빈 Set = 전체 표시)
+    @Published var statusFilters: Set<SessionStatusFilter> = [] {
         didSet { saveStatusFilter() }
     }
     @Published var collapsedSectionIds: Set<String> = [] {
@@ -133,16 +130,30 @@ final class SessionListViewModel: ObservableObject {
             .filter { $0.status != .normal }
     }
 
-    /// 세션 삭제 (아카이브 + 세션 레코드 모두 삭제)
+    /// 세션 삭제 (Claude Code 세션 파일 + 아카이브 + 세션 레코드 모두 삭제)
     func deleteSession(_ session: SessionItem) {
+        ClaudeSessionService.deleteSession(sessionId: session.id, location: session.location)
         TranscriptArchiveStore.delete(sessionId: session.id)
         SessionStore.deleteSession(sessionId: session.id)
         loadSessions()
     }
 
-    /// 필터링된 세션 목록
+    /// 세션 상태 수동 변경 (완료/종료만 가능, 진행중은 HOOK 전용)
+    func changeSessionStatus(_ session: SessionItem, to status: SessionStatus) {
+        guard status == .finished || status == .ended else { return }
+        let recordStatus = SessionStore.SessionRecordStatus(rawValue: status.rawValue) ?? .finished
+        SessionStore.updateSessionStatus(sessionId: session.id, status: recordStatus, reorder: false)
+        loadSessions()
+    }
+
+    /// 필터링된 세션 목록 (빈 필터 = 전체 표시)
     var filteredSessions: [SessionItem] {
-        sessions.filter { statusFilter.matches($0.status) }
+        if statusFilters.isEmpty {
+            return sessions
+        }
+        return sessions.filter { session in
+            statusFilters.contains { $0.matches(session.status) }
+        }
     }
 
     /// 위치별 세션 섹션 반환 (필터 적용)
@@ -172,8 +183,14 @@ final class SessionListViewModel: ObservableObject {
         listMode = SessionListMode(rawValue: storedMode) ?? .byLocation
         let storedLayout = SettingsStore.defaults.string(forKey: SettingsKeys.sessionLayoutMode) ?? ""
         layoutMode = SessionLayoutMode(rawValue: storedLayout) ?? .list
-        let storedFilter = SettingsStore.defaults.string(forKey: SettingsKeys.sessionStatusFilter) ?? ""
-        statusFilter = SessionStatusFilter(rawValue: storedFilter) ?? .all
+        // 다중 선택 필터 로드 (JSON 배열)
+        if let storedFilter = SettingsStore.defaults.string(forKey: SettingsKeys.sessionStatusFilter),
+           let data = storedFilter.data(using: .utf8),
+           let filters = try? JSONDecoder().decode([SessionStatusFilter].self, from: data) {
+            statusFilters = Set(filters)
+        } else {
+            statusFilters = []
+        }
         let storedCollapsed = SettingsStore.defaults.string(forKey: SettingsKeys.sessionCollapsedSections) ?? "[]"
         collapsedSectionIds = SessionGroupingService.decodeCollapsedSections(storedCollapsed)
     }
@@ -187,7 +204,12 @@ final class SessionListViewModel: ObservableObject {
     }
 
     private func saveStatusFilter() {
-        SettingsStore.defaults.set(statusFilter.rawValue, forKey: SettingsKeys.sessionStatusFilter)
+        // 다중 선택 필터 저장 (JSON 배열)
+        let filters = Array(statusFilters)
+        if let data = try? JSONEncoder().encode(filters),
+           let json = String(data: data, encoding: .utf8) {
+            SettingsStore.defaults.set(json, forKey: SettingsKeys.sessionStatusFilter)
+        }
     }
 
     private func saveCollapsedSections() {
