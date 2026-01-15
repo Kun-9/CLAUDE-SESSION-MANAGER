@@ -188,6 +188,7 @@ enum SessionStore {
             sessions.insert(updated, at: insertIndex)
         } else {
             // 순서 유지 (원래 위치에 삽입)
+            // min 필요: remove 후 index가 배열 크기와 같아질 수 있음 (마지막 요소였던 경우)
             sessions.insert(updated, at: min(index, sessions.count))
         }
         saveSessions(sessions)

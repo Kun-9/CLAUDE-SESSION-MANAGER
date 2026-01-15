@@ -75,7 +75,10 @@ enum ClaudeSessionService {
     // MARK: - Private Helpers
 
     /// 프로젝트 경로를 Claude Code 디렉토리명으로 인코딩
-    /// - 예: /Users/kun-mini/project → -Users-kun-mini-project
+    /// - Claude Code의 실제 인코딩 방식과 동일: `/` → `-` 단순 치환
+    /// - 예: /Users/kun/project → -Users-kun-project
+    /// - 주의: 경로에 `-`가 포함된 경우 이론적으로 충돌 가능하나,
+    ///   Claude Code와 동일한 동작을 유지하기 위해 이 방식 사용
     private static func encodeProjectPath(_ path: String) -> String {
         path.replacingOccurrences(of: "/", with: "-")
     }
