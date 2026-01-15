@@ -70,7 +70,7 @@ struct SessionCardView: View {
                     )
                 }
                 if session.status == .running, let startedAt = session.startedAt {
-                    ElapsedTimeText(startedAt: startedAt)
+                    ElapsedTimeText(startedAt: startedAt, baseDuration: session.duration ?? 0)
                         .font(.caption)
                 } else {
                     HStack {
@@ -166,7 +166,7 @@ struct SessionCardView: View {
             // 하단: 시간 + 상태 인디케이터
             HStack(spacing: 4) {
                 if session.status == .running, let startedAt = session.startedAt {
-                    ElapsedTimeText(startedAt: startedAt)
+                    ElapsedTimeText(startedAt: startedAt, baseDuration: session.duration ?? 0)
                 } else {
                     VStack(alignment: .leading, spacing: 2) {
                         if let duration = session.duration {
@@ -210,6 +210,7 @@ struct SessionCardView: View {
 
 private struct ElapsedTimeText: View {
     let startedAt: TimeInterval
+    let baseDuration: TimeInterval  // 일시정지 동안 누적된 시간
     @State private var elapsed: TimeInterval = 0
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -219,10 +220,10 @@ private struct ElapsedTimeText: View {
             .font(.system(size: 10, weight: .medium).monospacedDigit())
             .foregroundStyle(.secondary)
             .onAppear {
-                elapsed = Date().timeIntervalSince1970 - startedAt
+                elapsed = baseDuration + (Date().timeIntervalSince1970 - startedAt)
             }
             .onReceive(timer) { _ in
-                elapsed = Date().timeIntervalSince1970 - startedAt
+                elapsed = baseDuration + (Date().timeIntervalSince1970 - startedAt)
             }
     }
 

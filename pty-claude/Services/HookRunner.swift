@@ -132,7 +132,8 @@ enum HookRunner {
         SessionStore.updateSessionStatus(
             sessionId: event.session_id,
             status: .running,
-            prompt: event.prompt
+            prompt: event.prompt,
+            resetDuration: true  // 새 프롬프트 시작 시 시간 초기화
         )
     }
 

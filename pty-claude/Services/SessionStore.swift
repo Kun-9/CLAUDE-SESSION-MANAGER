@@ -109,7 +109,8 @@ enum SessionStore {
         sessionId: String?,
         status: SessionRecordStatus,
         prompt: String? = nil,
-        reorder: Bool = true
+        reorder: Bool = true,
+        resetDuration: Bool = false
     ) {
         let trimmedId = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmedId.isEmpty else {
@@ -129,24 +130,38 @@ enum SessionStore {
         let updatedStartedAt: TimeInterval?
         let updatedDuration: TimeInterval?
 
-        // running/permission 상태는 작업 진행 중으로 간주 (시간 계속 측정)
-        let isActiveStatus = (status == .running || status == .permission)
-        let wasActiveStatus = (existing.status == .running || existing.status == .permission)
-
-        if isActiveStatus {
-            updatedResponse = status == .running ? nil : existing.lastResponse
-            // 진행 중 상태 진입 시 startedAt 설정 (이미 진행 중이면 유지)
-            updatedStartedAt = wasActiveStatus ? existing.startedAt : now
-            // 기존 duration 유지 (누적됨)
-            updatedDuration = existing.duration
-        } else {
-            // finished, ended 등 완료 상태에서만 duration 최종 계산
+        if status == .running {
+            // running: 시간 측정 시작/재개
+            updatedResponse = nil
+            if resetDuration {
+                // UserPromptSubmit: 새 프롬프트 시작, duration 초기화
+                updatedStartedAt = now
+                updatedDuration = nil
+            } else if existing.status == .running {
+                // 이미 running: 유지
+                updatedStartedAt = existing.startedAt
+                updatedDuration = existing.duration
+            } else {
+                // permission/finished 등에서 재개: 기존 duration 유지
+                updatedStartedAt = now
+                updatedDuration = existing.duration
+            }
+        } else if status == .permission {
+            // permission: 일시정지 (현재까지 시간 저장)
             updatedResponse = existing.lastResponse
-            // 상태 전환 시 duration 계산: 기존 duration + 이번 경과 시간
             if let startedAt = existing.startedAt {
                 let elapsed = now - startedAt
-                let previousDuration = existing.duration ?? 0
-                updatedDuration = previousDuration + elapsed
+                updatedDuration = (existing.duration ?? 0) + elapsed
+            } else {
+                updatedDuration = existing.duration
+            }
+            updatedStartedAt = nil
+        } else {
+            // finished, ended 등 완료 상태
+            updatedResponse = existing.lastResponse
+            if let startedAt = existing.startedAt {
+                let elapsed = now - startedAt
+                updatedDuration = (existing.duration ?? 0) + elapsed
             } else {
                 updatedDuration = existing.duration
             }
