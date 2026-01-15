@@ -3,7 +3,7 @@
 // - UserDefaults 마이그레이션 (kun-project.pty-claude.shared → kun-project.ClaudeSessionManager.shared)
 // - Application Support 폴더 마이그레이션 (pty-claude → ClaudeSessionManager)
 
-import Foundation
+import AppKit
 
 enum MigrationService {
     // MARK: - Constants
@@ -17,14 +17,70 @@ enum MigrationService {
 
     /// 앱 시작 시 호출하여 이전 데이터 마이그레이션 수행
     /// - 이미 마이그레이션이 완료된 경우 건너뜀
+    /// - 마이그레이션 대상이 있으면 확인창 표시 후 진행
     static func migrateIfNeeded() {
         guard !isMigrationCompleted() else {
             return
         }
 
-        migrateUserDefaults()
-        migrateApplicationSupportFolder()
-        markMigrationCompleted()
+        // 마이그레이션 대상이 있는지 확인
+        guard hasMigrationTargets() else {
+            markMigrationCompleted()
+            return
+        }
+
+        // 확인창 표시 후 사용자 승인 시 마이그레이션 수행
+        if showMigrationConfirmation() {
+            migrateUserDefaults()
+            migrateApplicationSupportFolder()
+            markMigrationCompleted()
+        } else {
+            // 사용자가 거부해도 다시 묻지 않도록 완료 표시
+            markMigrationCompleted()
+        }
+    }
+
+    // MARK: - Migration Check
+
+    /// 마이그레이션 대상 데이터가 있는지 확인
+    private static func hasMigrationTargets() -> Bool {
+        // UserDefaults 확인
+        if let legacyDefaults = UserDefaults(suiteName: legacySuiteName) {
+            let legacyDict = legacyDefaults.dictionaryRepresentation()
+            if !legacyDict.isEmpty {
+                return true
+            }
+        }
+
+        // Application Support 폴더 확인
+        let fileManager = FileManager.default
+        if let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            let legacyURL = appSupportURL.appendingPathComponent(legacyAppFolderName, isDirectory: true)
+            if fileManager.fileExists(atPath: legacyURL.path) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /// 마이그레이션 확인창 표시
+    /// - Returns: 사용자가 마이그레이션에 동의하면 true
+    private static func showMigrationConfirmation() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "이전 데이터 마이그레이션"
+        alert.informativeText = """
+            이전 버전(pty-claude)의 설정과 데이터가 발견되었습니다.
+
+            마이그레이션을 진행하면 기존 설정, 세션 목록, 트랜스크립트 아카이브가 새 버전으로 복사됩니다.
+
+            마이그레이션을 진행하시겠습니까?
+            """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "마이그레이션")
+        alert.addButton(withTitle: "건너뛰기")
+
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     // MARK: - Private Methods
