@@ -97,7 +97,7 @@ struct SessionDetailSheet: View {
             Spacer()
             SessionStatusBadge(status: viewModel.currentSession?.status ?? session.status)
             Button {
-                ITermService.resumeSession(sessionId: session.id, location: session.location)
+                TerminalService.resumeSession(sessionId: session.id, location: session.location)
             } label: {
                 Label("대화 이어하기", systemImage: "terminal")
             }

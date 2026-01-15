@@ -172,6 +172,13 @@ final class SessionListViewModel: ObservableObject {
         }
     }
 
+    /// 섹션 즐겨찾기 토글
+    func toggleFavorite(_ sectionId: String) {
+        SessionGroupingService.toggleFavorite(sectionId)
+        // 목록 새로고침하여 isFavorite 반영
+        loadSessions()
+    }
+
     // MARK: - Private Helpers
 
     /// 사용자 설정 로드 (그룹핑 모드, 레이아웃 모드, 필터, 접힘 상태)

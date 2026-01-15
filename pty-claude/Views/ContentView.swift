@@ -25,6 +25,8 @@ struct ContentView: View {
     private var storedSoundName = "Glass"
     @AppStorage(SettingsKeys.soundVolume, store: SettingsStore.defaults)
     private var storedSoundVolume = 1.0
+    @AppStorage(SettingsKeys.terminalApp, store: SettingsStore.defaults)
+    private var storedTerminalApp = TerminalApp.iTerm2.rawValue
 
     // MARK: - 화면에서 편집 중인 임시 값
 
@@ -36,6 +38,7 @@ struct ContentView: View {
     @State private var draftSoundEnabled = true
     @State private var draftSoundName = "Glass"
     @State private var draftSoundVolume = 1.0
+    @State private var draftTerminalApp = TerminalApp.iTerm2.rawValue
 
     // MARK: - UI State
 
@@ -93,6 +96,7 @@ private extension ContentView {
                     draftSoundEnabled: $draftSoundEnabled,
                     draftSoundName: $draftSoundName,
                     draftSoundVolume: $draftSoundVolume,
+                    draftTerminalApp: $draftTerminalApp,
                     soundOptions: soundOptions,
                     onSave: saveDrafts,
                     onClose: { showSettings = false }
@@ -174,6 +178,7 @@ private extension ContentView {
         draftSoundEnabled = storedSoundEnabled
         draftSoundName = storedSoundName
         draftSoundVolume = storedSoundVolume
+        draftTerminalApp = storedTerminalApp
     }
 
     /// 임시 값을 저장 값으로 반영
@@ -186,6 +191,7 @@ private extension ContentView {
         storedSoundEnabled = draftSoundEnabled
         storedSoundName = draftSoundName
         storedSoundVolume = draftSoundVolume
+        storedTerminalApp = draftTerminalApp
     }
 }
 

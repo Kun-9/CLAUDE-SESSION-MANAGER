@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 enum SettingsKeys {
@@ -16,6 +17,32 @@ enum SettingsKeys {
     static let sessionLayoutMode = "session.layout.mode"
     static let sessionStatusFilter = "session.status.filter"
     static let sessionCollapsedSections = "session.collapsed.sections"
+    static let favoriteSections = "session.favorite.sections"
+    static let terminalApp = "terminal.app"
+}
+
+/// 지원하는 터미널 앱
+enum TerminalApp: String, CaseIterable, Identifiable {
+    case iTerm2 = "iTerm2"
+    case terminal = "Terminal"
+
+    var id: String { rawValue }
+
+    /// 앱 번들 ID
+    var bundleId: String {
+        switch self {
+        case .iTerm2: return "com.googlecode.iterm2"
+        case .terminal: return "com.apple.Terminal"
+        }
+    }
+
+    /// 앱 이름 (UI 표시용)
+    var displayName: String { rawValue }
+
+    /// 시스템에 설치되어 있는지 확인
+    var isInstalled: Bool {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) != nil
+    }
 }
 
 enum SettingsStore {
@@ -38,9 +65,26 @@ enum SettingsStore {
                 SettingsKeys.sessionListMode: "By Location",
                 SettingsKeys.sessionLayoutMode: "List",
                 SettingsKeys.sessionCollapsedSections: "[]",
+                SettingsKeys.favoriteSections: "[]",
+                SettingsKeys.terminalApp: TerminalApp.iTerm2.rawValue,
             ]
         )
     }
+
+    // MARK: - Terminal
+
+    /// 현재 선택된 터미널 앱
+    static func terminalApp() -> TerminalApp {
+        let raw = defaults.string(forKey: SettingsKeys.terminalApp) ?? TerminalApp.iTerm2.rawValue
+        return TerminalApp(rawValue: raw) ?? .iTerm2
+    }
+
+    /// 터미널 앱 설정 저장
+    static func setTerminalApp(_ app: TerminalApp) {
+        defaults.set(app.rawValue, forKey: SettingsKeys.terminalApp)
+    }
+
+    // MARK: - Notifications
 
     // 알림 전체 사용 여부
     static func notificationsEnabled() -> Bool {

@@ -5,6 +5,7 @@ struct SessionSection: Identifiable {
     let title: String
     let subtitle: String?
     let sessions: [SessionItem]
+    let isFavorite: Bool
 }
 
 struct SessionSectionHeader: View {
@@ -12,6 +13,8 @@ struct SessionSectionHeader: View {
     let subtitle: String?
     let count: Int
     let isCollapsed: Bool
+    let isFavorite: Bool
+    var onFavoriteTap: (() -> Void)?
     var onTerminalTap: (() -> Void)?
 
     var body: some View {
@@ -20,6 +23,18 @@ struct SessionSectionHeader: View {
                 Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
+                // 즐겨찾기 별 아이콘 (타이틀 앞)
+                if let onFavoriteTap {
+                    Button {
+                        onFavoriteTap()
+                    } label: {
+                        Image(systemName: isFavorite ? "star.fill" : "star")
+                            .font(.caption)
+                            .foregroundStyle(isFavorite ? Color.yellow : Color.secondary.opacity(0.5))
+                    }
+                    .buttonStyle(.plain)
+                    .help(isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가")
+                }
                 Text(title)
                     .font(.headline)
                 Text("\(count)")

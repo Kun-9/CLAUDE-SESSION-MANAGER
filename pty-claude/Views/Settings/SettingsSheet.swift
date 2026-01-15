@@ -15,6 +15,7 @@ struct SettingsSheet: View {
     @Binding var draftSoundEnabled: Bool
     @Binding var draftSoundName: String
     @Binding var draftSoundVolume: Double
+    @Binding var draftTerminalApp: String
 
     // MARK: - 저장된 값 (UserDefaults에서 직접 읽기)
     @AppStorage(SettingsKeys.notificationsEnabled, store: SettingsStore.defaults)
@@ -33,6 +34,8 @@ struct SettingsSheet: View {
     private var storedSoundName = "Glass"
     @AppStorage(SettingsKeys.soundVolume, store: SettingsStore.defaults)
     private var storedSoundVolume = 1.0
+    @AppStorage(SettingsKeys.terminalApp, store: SettingsStore.defaults)
+    private var storedTerminalApp = TerminalApp.iTerm2.rawValue
 
     let soundOptions: [String]
     let onSave: () -> Void
@@ -48,6 +51,7 @@ struct SettingsSheet: View {
             || storedSoundEnabled != draftSoundEnabled
             || storedSoundName != draftSoundName
             || storedSoundVolume != draftSoundVolume
+            || storedTerminalApp != draftTerminalApp
     }
 
     // MARK: - State
@@ -85,7 +89,7 @@ struct SettingsSheet: View {
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             // 시트 표시 후 시스템 auto-focus 해제
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 NSApp.keyWindow?.makeFirstResponder(nil)
             }
         }
@@ -140,6 +144,8 @@ struct SettingsSheet: View {
         switch selectedTab {
         case .notifications:
             notificationsView
+        case .terminal:
+            terminalView
         case .claude:
             claudeView
         case .debug:
@@ -250,6 +256,47 @@ struct SettingsSheet: View {
                     }
                     .foregroundStyle(draftNotificationsEnabled && draftSoundEnabled ? .primary : .secondary)
                     .disabled(!draftNotificationsEnabled || !draftSoundEnabled)
+                }
+            }
+            .padding(24)
+        }
+        .contentShape(Rectangle())
+        .simultaneousGesture(TapGesture().onEnded { dismissFocus() })
+    }
+
+    // MARK: - Terminal View
+
+    private var terminalView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                SectionHeaderView(
+                    title: "Terminal App",
+                    subtitle: "Choose which terminal app to use for sessions."
+                )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(TerminalApp.allCases) { app in
+                        TerminalAppRowView(
+                            app: app,
+                            isSelected: draftTerminalApp == app.rawValue,
+                            onSelect: { draftTerminalApp = app.rawValue }
+                        )
+                    }
+                }
+
+                Divider()
+
+                // 시스템 설정 열기 버튼
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("자동화 권한")
+                        .font(.subheadline.weight(.semibold))
+                    Text("터미널 앱을 제어하려면 시스템 환경설정에서 자동화 권한을 허용해야 합니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("시스템 설정 열기") {
+                        TerminalService.openAutomationSettings()
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
             .padding(24)
@@ -431,6 +478,7 @@ struct SettingsSheet: View {
 
 private enum SettingsTab: String, CaseIterable, Identifiable {
     case notifications = "Notifications"
+    case terminal = "Terminal"
     case claude = "Claude"
     case debug = "Debug"
 
@@ -441,6 +489,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .notifications: return "bell"
+        case .terminal: return "rectangle.on.rectangle"
         case .claude: return "terminal"
         case .debug: return "ladybug"
         }
@@ -604,5 +653,103 @@ private struct HoverButton: View {
             return isPrimary ? .white.opacity(0.6) : .secondary
         }
         return isPrimary ? .white : .primary
+    }
+}
+
+// MARK: - Terminal App Row View
+
+/// 터미널 앱 선택 행 (권한 상태 포함)
+private struct TerminalAppRowView: View {
+    let app: TerminalApp
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    @State private var hasPermission: Bool = false
+    @State private var isCheckingPermission: Bool = false
+
+    private var isInstalled: Bool { app.isInstalled }
+
+    var body: some View {
+        Button(action: {
+            if isInstalled {
+                onSelect()
+            }
+        }) {
+            HStack(spacing: 12) {
+                // 선택 표시
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? .accentColor : .secondary)
+                    .font(.system(size: 18))
+
+                // 앱 이름
+                Text(app.displayName)
+                    .font(.body)
+
+                Spacer()
+
+                // 상태 표시
+                statusLabel
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isInstalled)
+        .opacity(isInstalled ? 1.0 : 0.5)
+        .onAppear {
+            checkPermission()
+        }
+    }
+
+    @ViewBuilder
+    private var statusLabel: some View {
+        if !isInstalled {
+            Text("설치 안됨")
+                .font(.caption)
+                .foregroundColor(.orange)
+        } else if isCheckingPermission {
+            ProgressView()
+                .scaleEffect(0.6)
+        } else if hasPermission {
+            Label("허용됨", systemImage: "checkmark.shield.fill")
+                .font(.caption)
+                .foregroundColor(.green)
+        } else {
+            Button("권한 요청") {
+                requestPermission()
+            }
+            .font(.caption)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+    }
+
+    private func checkPermission() {
+        guard isInstalled else { return }
+        isCheckingPermission = true
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = TerminalService.checkAutomationPermission(for: app)
+            DispatchQueue.main.async {
+                hasPermission = result
+                isCheckingPermission = false
+            }
+        }
+    }
+
+    private func requestPermission() {
+        TerminalService.requestAutomationPermission(for: app)
+        // 권한 요청 후 잠시 대기 후 다시 확인
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            checkPermission()
+        }
     }
 }

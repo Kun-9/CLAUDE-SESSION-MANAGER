@@ -103,7 +103,11 @@ struct SessionView: View {
                             title: section.title,
                             subtitle: section.subtitle,
                             count: section.sessions.count,
-                            isCollapsed: viewModel.isSectionCollapsed(section.id)
+                            isCollapsed: viewModel.isSectionCollapsed(section.id),
+                            isFavorite: section.isFavorite,
+                            onFavoriteTap: {
+                                viewModel.toggleFavorite(section.id)
+                            }
                         )
                     }
                     .buttonStyle(.plain)
@@ -124,6 +128,7 @@ struct SessionView: View {
             sections: viewModel.sessionSections,
             collapsedIds: viewModel.collapsedSectionIds,
             onToggleSection: { viewModel.toggleSection($0) },
+            onToggleFavorite: { viewModel.toggleFavorite($0) },
             onSelectSession: { selectedSession = $0 },
             onDeleteSession: { sessionToDelete = $0 },
             onRenameSession: { sessionToRename = $0 },
@@ -175,7 +180,7 @@ struct SessionView: View {
         }
 
         Button {
-            ITermService.resumeSession(sessionId: session.id, location: session.location)
+            TerminalService.resumeSession(sessionId: session.id, location: session.location)
         } label: {
             Label("대화 이어하기", systemImage: "terminal")
         }

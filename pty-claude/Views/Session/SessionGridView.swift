@@ -51,6 +51,7 @@ struct SessionSectionGridView: View {
     let sections: [SessionSection]
     let collapsedIds: Set<String>
     let onToggleSection: (String) -> Void
+    var onToggleFavorite: ((String) -> Void)?
     let onSelectSession: (SessionItem) -> Void
     var onDeleteSession: ((SessionItem) -> Void)?
     var onRenameSession: ((SessionItem) -> Void)?
@@ -73,8 +74,12 @@ struct SessionSectionGridView: View {
                             subtitle: section.subtitle,
                             count: section.sessions.count,
                             isCollapsed: collapsedIds.contains(section.id),
+                            isFavorite: section.isFavorite,
+                            onFavoriteTap: onToggleFavorite != nil ? {
+                                onToggleFavorite?(section.id)
+                            } : nil,
                             onTerminalTap: {
-                                ITermService.openDirectory(location: section.sessions.first?.location)
+                                TerminalService.openDirectory(location: section.sessions.first?.location)
                             }
                         )
                     }
@@ -148,7 +153,7 @@ struct SessionContextMenu: View {
         }
 
         Button {
-            ITermService.resumeSession(sessionId: session.id, location: session.location)
+            TerminalService.resumeSession(sessionId: session.id, location: session.location)
         } label: {
             Label("대화 이어하기", systemImage: "terminal")
         }
@@ -198,7 +203,7 @@ struct NewSessionCard: View {
         }
         .hoverCardStyle(cornerRadius: 10)
         .onTapGesture {
-            ITermService.startNewSession(location: location)
+            TerminalService.startNewSession(location: location)
         }
     }
 }
