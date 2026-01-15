@@ -1,11 +1,11 @@
-# pty-claude 프로젝트 규칙
+# ClaudeSessionManager 프로젝트 규칙
 
 macOS 네이티브 앱으로, Claude Code 세션을 관리하고 훅 이벤트를 처리하는 도구입니다.
 
 ## 프로젝트 구조
 
 ```
-pty-claude/
+ClaudeSessionManager/
 ├── App/                    # 앱 진입점 및 설정
 ├── Models/                 # 데이터 모델 (Codable 구조체)
 │   └── Transcript/         # 트랜스크립트 관련 모델
@@ -211,10 +211,10 @@ TYPE: 간단한 설명 (한글)
 
 | 타겟 | 설명 |
 |------|------|
-| `pty-claude` | 메인 macOS 앱 |
-| `pty-claude-hook` | CLI 훅 도구 (앱 번들에 포함) |
+| `ClaudeSessionManager` | 메인 macOS 앱 |
+| `ClaudeSessionManager-hook` | CLI 훅 도구 (앱 번들에 포함) |
 
-**주의**: UI 관련 서비스는 `pty-claude` 타겟에만 포함. `pty-claude-hook`에서 UI 타입 참조 시 빌드 오류 발생.
+**주의**: UI 관련 서비스는 `ClaudeSessionManager` 타겟에만 포함. `ClaudeSessionManager-hook`에서 UI 타입 참조 시 빌드 오류 발생.
 
 ## AI 협업 규칙 (Claude Code + Codex CLI)
 
