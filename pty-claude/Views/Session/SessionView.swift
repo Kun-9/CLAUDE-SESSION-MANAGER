@@ -214,11 +214,9 @@ private struct SessionStatusFilterToggle: View {
                 .frame(height: 28)
                 .padding(.horizontal, 10)
                 .contentShape(Rectangle())
-                .foregroundColor(isSelected ? filter.tint : Color.secondary.opacity(0.6))
         }
         .buttonStyle(.plain)
-        .background(isSelected ? filter.background : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .foregroundColor(isSelected ? filter.tint : Color.secondary.opacity(0.5))
     }
 }
 

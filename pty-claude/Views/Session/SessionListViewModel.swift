@@ -51,21 +51,12 @@ enum SessionStatusFilter: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    /// 필터 선택 시 색상
+    /// 필터 고유 색상
     var tint: Color {
         switch self {
         case .running: return .green
         case .finished: return .blue
         case .ended: return .red
-        }
-    }
-
-    /// 필터 선택 시 배경색
-    var background: Color {
-        switch self {
-        case .running: return .green.opacity(0.15)
-        case .finished: return .blue.opacity(0.15)
-        case .ended: return .red.opacity(0.15)
         }
     }
 }
