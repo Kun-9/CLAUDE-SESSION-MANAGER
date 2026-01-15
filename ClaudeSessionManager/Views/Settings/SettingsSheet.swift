@@ -12,6 +12,7 @@ struct SettingsSheet: View {
     @Binding var draftPreToolUseTools: String
     @Binding var draftStopEnabled: Bool
     @Binding var draftPermissionEnabled: Bool
+    @Binding var draftInteractivePermission: Bool
     @Binding var draftSoundEnabled: Bool
     @Binding var draftSoundName: String
     @Binding var draftSoundVolume: Double
@@ -28,6 +29,8 @@ struct SettingsSheet: View {
     private var storedStopEnabled = true
     @AppStorage(SettingsKeys.permissionEnabled, store: SettingsStore.defaults)
     private var storedPermissionEnabled = true
+    @AppStorage(SettingsKeys.interactivePermission, store: SettingsStore.defaults)
+    private var storedInteractivePermission = false
     @AppStorage(SettingsKeys.soundEnabled, store: SettingsStore.defaults)
     private var storedSoundEnabled = true
     @AppStorage(SettingsKeys.soundName, store: SettingsStore.defaults)
@@ -48,6 +51,7 @@ struct SettingsSheet: View {
             || storedPreToolUseTools != draftPreToolUseTools
             || storedStopEnabled != draftStopEnabled
             || storedPermissionEnabled != draftPermissionEnabled
+            || storedInteractivePermission != draftInteractivePermission
             || storedSoundEnabled != draftSoundEnabled
             || storedSoundName != draftSoundName
             || storedSoundVolume != draftSoundVolume
@@ -211,6 +215,23 @@ struct SettingsSheet: View {
                     }
                     .foregroundStyle(draftNotificationsEnabled ? .primary : .secondary)
                     .disabled(!draftNotificationsEnabled)
+                }
+
+                Divider()
+
+                // 섹션 1.5: 대화형 권한 요청
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        SectionHeaderView(
+                            title: "Interactive Permission",
+                            subtitle: "Handle permission requests in this app instead of Claude Code."
+                        )
+                        Spacer()
+                        Toggle("", isOn: $draftInteractivePermission)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                    }
+
                 }
 
                 Divider()

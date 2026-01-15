@@ -14,32 +14,67 @@ struct SessionGridView: View {
     var onRename: ((SessionItem) -> Void)?
     var onChangeStatus: ((SessionItem, SessionStatus) -> Void)?
 
+    @StateObject private var permissionViewModel = PermissionRequestViewModel()
+
     /// 적응형 격자 열 정의 (최소 120pt, 최대 160pt)
     private let columns = [
         GridItem(.adaptive(minimum: 120, maximum: 160), spacing: 10)
     ]
 
+    /// 해당 세션에 대한 권한 요청 찾기
+    private func permissionRequest(for session: SessionItem) -> PermissionRequest? {
+        permissionViewModel.pendingRequests.first { $0.sessionId == session.id }
+    }
+
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 12) {
-            ForEach(sessions) { session in
-                Button {
-                    // 클릭 시 확인됨으로 표시
-                    if session.isUnseen {
-                        SessionStore.markSessionAsSeen(sessionId: session.id)
+        VStack(spacing: 16) {
+            // 권한 요청이 있는 세션들 (인라인 표시)
+            ForEach(permissionViewModel.pendingRequests) { request in
+                if let session = sessions.first(where: { $0.id == request.sessionId }) {
+                    VStack(spacing: 0) {
+                        Button {
+                            if session.isUnseen {
+                                SessionStore.markSessionAsSeen(sessionId: session.id)
+                            }
+                            onSelect(session)
+                        } label: {
+                            SessionCardView(session: session, style: .full)
+                        }
+                        .buttonStyle(.plain)
+
+                        InlinePermissionRequestView(
+                            request: request,
+                            onAllow: { answers in permissionViewModel.allow(request: request, answers: answers) },
+                            onDeny: { permissionViewModel.deny(request: request) },
+                            onAsk: { permissionViewModel.askClaudeCode(request: request) }
+                        )
                     }
-                    onSelect(session)
-                } label: {
-                    SessionCardView(session: session, style: .compact)
                 }
-                .buttonStyle(.plain)
-                .commandHoverResume(session: session, cornerRadius: 10)
-                .contextMenu {
-                    SessionContextMenu(
-                        session: session,
-                        onChangeStatus: onChangeStatus,
-                        onRename: onRename,
-                        onDelete: onDelete
-                    )
+            }
+
+            // 나머지 세션들 (격자)
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(sessions.filter { session in
+                    !permissionViewModel.pendingRequests.contains { $0.sessionId == session.id }
+                }) { session in
+                    Button {
+                        if session.isUnseen {
+                            SessionStore.markSessionAsSeen(sessionId: session.id)
+                        }
+                        onSelect(session)
+                    } label: {
+                        SessionCardView(session: session, style: .compact)
+                    }
+                    .buttonStyle(.plain)
+                    .commandHoverResume(session: session, cornerRadius: 10)
+                    .contextMenu {
+                        SessionContextMenu(
+                            session: session,
+                            onChangeStatus: onChangeStatus,
+                            onRename: onRename,
+                            onDelete: onDelete
+                        )
+                    }
                 }
             }
         }
@@ -57,12 +92,44 @@ struct SessionSectionGridView: View {
     var onRenameSession: ((SessionItem) -> Void)?
     var onChangeStatus: ((SessionItem, SessionStatus) -> Void)?
 
+    @StateObject private var permissionViewModel = PermissionRequestViewModel()
+
     private let columns = [
         GridItem(.adaptive(minimum: 120, maximum: 160), spacing: 10)
     ]
 
+    /// 해당 세션에 대한 권한 요청 찾기
+    private func permissionRequest(for session: SessionItem) -> PermissionRequest? {
+        permissionViewModel.pendingRequests.first { $0.sessionId == session.id }
+    }
+
     var body: some View {
         LazyVStack(spacing: 16) {
+            // 권한 요청이 있는 세션들을 상단에 표시
+            ForEach(permissionViewModel.pendingRequests) { request in
+                let allSessions = sections.flatMap { $0.sessions }
+                if let session = allSessions.first(where: { $0.id == request.sessionId }) {
+                    VStack(spacing: 0) {
+                        Button {
+                            if session.isUnseen {
+                                SessionStore.markSessionAsSeen(sessionId: session.id)
+                            }
+                            onSelectSession(session)
+                        } label: {
+                            SessionCardView(session: session, style: .full)
+                        }
+                        .buttonStyle(.plain)
+
+                        InlinePermissionRequestView(
+                            request: request,
+                            onAllow: { answers in permissionViewModel.allow(request: request, answers: answers) },
+                            onDeny: { permissionViewModel.deny(request: request) },
+                            onAsk: { permissionViewModel.askClaudeCode(request: request) }
+                        )
+                    }
+                }
+            }
+
             ForEach(sections) { section in
                 VStack(alignment: .leading, spacing: 10) {
                     // 섹션 헤더 (접기/펼치기)
@@ -91,9 +158,11 @@ struct SessionSectionGridView: View {
                             // 새 세션 추가 카드
                             NewSessionCard(location: section.sessions.first?.location)
 
-                            ForEach(section.sessions) { session in
+                            // 권한 요청이 없는 세션만 그리드에 표시
+                            ForEach(section.sessions.filter { session in
+                                !permissionViewModel.pendingRequests.contains { $0.sessionId == session.id }
+                            }) { session in
                                 Button {
-                                    // 클릭 시 확인됨으로 표시
                                     if session.isUnseen {
                                         SessionStore.markSessionAsSeen(sessionId: session.id)
                                     }

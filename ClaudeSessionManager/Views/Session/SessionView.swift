@@ -8,25 +8,28 @@ import SwiftUI
 
 struct SessionView: View {
     @StateObject private var viewModel = SessionListViewModel()
+    @StateObject private var permissionViewModel = PermissionRequestViewModel()
     @Binding var selectedSession: SessionItem?
     @State private var sessionToDelete: SessionItem?
     @State private var sessionToRename: SessionItem?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // 컨트롤 영역: 그룹핑 모드 + 필터 + 레이아웃 모드
-                HStack(spacing: 12) {
-                    SessionListModeToggle(selection: $viewModel.listMode)
-                    SessionStatusFilterToggle(selection: $viewModel.statusFilters)
-                    Spacer()
-                    SessionLayoutToggle(selection: $viewModel.layoutMode)
-                }
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // 컨트롤 영역: 그룹핑 모드 + 필터 + 레이아웃 모드
+                    HStack(spacing: 12) {
+                        SessionListModeToggle(selection: $viewModel.listMode)
+                        SessionStatusFilterToggle(selection: $viewModel.statusFilters)
+                        Spacer()
+                        SessionLayoutToggle(selection: $viewModel.layoutMode)
+                    }
 
-                // 콘텐츠 영역: 모드 조합에 따른 렌더링
-                sessionContent
+                    // 콘텐츠 영역: 모드 조합에 따른 렌더링
+                    sessionContent
+                }
+                .padding(24)
             }
-            .padding(24)
         }
         .confirmationDialog(
             "세션 삭제",
@@ -138,21 +141,46 @@ struct SessionView: View {
         )
     }
 
+    /// 해당 세션에 대한 권한 요청 찾기
+    private func permissionRequest(for session: SessionItem) -> PermissionRequest? {
+        permissionViewModel.pendingRequests.first { $0.sessionId == session.id }
+    }
+
     @ViewBuilder
     private func sessionButton(for session: SessionItem) -> some View {
-        Button {
-            // 클릭 시 확인됨으로 표시
-            if session.isUnseen {
-                SessionStore.markSessionAsSeen(sessionId: session.id)
+        let request = permissionRequest(for: session)
+
+        VStack(spacing: 0) {
+            // 세션 카드
+            Button {
+                // 클릭 시 확인됨으로 표시
+                if session.isUnseen {
+                    SessionStore.markSessionAsSeen(sessionId: session.id)
+                }
+                selectedSession = session
+            } label: {
+                SessionCardView(session: session, style: .full)
             }
-            selectedSession = session
-        } label: {
-            SessionCardView(session: session, style: .full)
+            .buttonStyle(.plain)
+            .contextMenu {
+                sessionStatusMenu(for: session)
+            }
+
+            // 권한 요청이 있으면 인라인 표시
+            if let request = request {
+                InlinePermissionRequestView(
+                    request: request,
+                    onAllow: { answers in permissionViewModel.allow(request: request, answers: answers) },
+                    onDeny: { permissionViewModel.deny(request: request) },
+                    onAsk: { permissionViewModel.askClaudeCode(request: request) }
+                )
+                .transition(.asymmetric(
+                    insertion: .push(from: .top).combined(with: .opacity),
+                    removal: .push(from: .bottom).combined(with: .opacity)
+                ))
+            }
         }
-        .buttonStyle(.plain)
-        .contextMenu {
-            sessionStatusMenu(for: session)
-        }
+        .animation(.spring(response: 0.3), value: request?.id)
     }
 
     @ViewBuilder
