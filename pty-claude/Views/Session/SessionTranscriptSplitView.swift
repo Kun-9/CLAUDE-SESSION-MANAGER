@@ -82,6 +82,20 @@ struct SessionTranscriptListView: View {
                     // 초기 스크롤: 마지막 항목으로 즉시 이동
                     scrollToBottom(proxy: proxy, animated: false)
                 }
+                .onChange(of: entries.count) { oldCount, newCount in
+                    // entries가 로드되거나 변경되면 마지막으로 스크롤
+                    // 초기 로드 시 (0 -> N) 또는 세션 전환 시
+                    if oldCount == 0 && newCount > 0 {
+                        scrollToBottom(proxy: proxy, animated: false)
+                    }
+                }
+                .onChange(of: entries.first?.id) { oldValue, newValue in
+                    // 첫 번째 엔트리 ID가 변경되면 새 세션으로 간주
+                    if oldValue != nil && newValue != nil && oldValue != newValue {
+                        didInitialScroll = false
+                        scrollToBottom(proxy: proxy, animated: false)
+                    }
+                }
                 .onChange(of: selectedEntryId) { oldValue, newValue in
                     // 사용자가 직접 선택 변경 시에만 스크롤 (자동 선택 제외)
                     guard let id = newValue, didInitialScroll else { return }
