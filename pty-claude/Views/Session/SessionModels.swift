@@ -12,6 +12,7 @@ struct SessionItem: Identifiable {
     let duration: TimeInterval?   // 마지막 작업 소요 시간
     let lastPrompt: String?
     let lastResponse: String?
+    let isUnseen: Bool            // 완료 후 미확인 상태 여부
 }
 
 enum SessionStatus: String {
@@ -97,6 +98,8 @@ extension SessionItem {
         duration = record.duration
         lastPrompt = record.lastPrompt
         lastResponse = record.lastResponse
+        // finished 상태이고 미확인이면 반짝이는 효과 표시
+        isUnseen = (record.status == .finished) && !SessionStore.isSessionSeen(sessionId: record.id)
     }
 
     static func relativeUpdateText(from timestamp: TimeInterval) -> String {
