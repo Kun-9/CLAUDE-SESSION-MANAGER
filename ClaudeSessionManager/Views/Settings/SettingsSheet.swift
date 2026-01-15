@@ -378,7 +378,10 @@ struct SettingsSheet: View {
                             if let status = preview.statusMessage {
                                 claudeStatus = status
                             }
-                            showClaudePreview = true
+                            // 상태 업데이트 후 다음 런루프에서 시트 표시 (타이밍 문제 방지)
+                            DispatchQueue.main.async {
+                                showClaudePreview = true
+                            }
                         }
                         .buttonStyle(.bordered)
 
