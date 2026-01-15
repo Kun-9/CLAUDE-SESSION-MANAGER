@@ -2,6 +2,7 @@ import Foundation
 
 enum SettingsKeys {
     // UserDefaults 키 모음
+    static let notificationsEnabled = "notifications.enabled"
     static let preToolUseEnabled = "hook.preToolUse.enabled"
     static let preToolUseTools = "hook.preToolUse.tools"
     static let stopEnabled = "hook.stop.enabled"
@@ -13,6 +14,7 @@ enum SettingsKeys {
     static let debugLogs = "debug.logs"
     static let sessionListMode = "session.list.mode"
     static let sessionLayoutMode = "session.layout.mode"
+    static let sessionStatusFilter = "session.status.filter"
     static let sessionCollapsedSections = "session.collapsed.sections"
 }
 
@@ -24,6 +26,7 @@ enum SettingsStore {
     static func registerDefaults() {
         defaults.register(
             defaults: [
+                SettingsKeys.notificationsEnabled: true,
                 SettingsKeys.preToolUseEnabled: false,
                 SettingsKeys.preToolUseTools: "AskUserQuestion",
                 SettingsKeys.stopEnabled: true,
@@ -37,6 +40,11 @@ enum SettingsStore {
                 SettingsKeys.sessionCollapsedSections: "[]",
             ]
         )
+    }
+
+    // 알림 전체 사용 여부
+    static func notificationsEnabled() -> Bool {
+        defaults.bool(forKey: SettingsKeys.notificationsEnabled)
     }
 
     // PreToolUse 훅 사용 여부

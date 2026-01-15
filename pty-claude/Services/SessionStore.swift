@@ -2,6 +2,7 @@ import Foundation
 
 enum SessionStore {
     static let sessionsKey = "session.list"
+    static let seenSessionsKey = "session.seen"
     static let defaults = SettingsStore.defaults
     static let sessionsDidChangeNotification = Notification.Name("pty-claude.session.list.updated")
 
@@ -99,10 +100,17 @@ enum SessionStore {
     }
 
     // 상태 업데이트 + 최근 변경 시각 갱신
+    /// - Parameters:
+    ///   - sessionId: 세션 ID
+    ///   - status: 변경할 상태
+    ///   - prompt: 프롬프트 (옵션)
+    ///   - reorder: true면 같은 location 그룹 내 상위로 이동, false면 순서 유지
     static func updateSessionStatus(
         sessionId: String?,
         status: SessionRecordStatus,
-        prompt: String? = nil
+        prompt: String? = nil,
+        reorder: Bool = true,
+        resetDuration: Bool = false
     ) {
         let trimmedId = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmedId.isEmpty else {
@@ -121,16 +129,39 @@ enum SessionStore {
         let updatedResponse: String?
         let updatedStartedAt: TimeInterval?
         let updatedDuration: TimeInterval?
+
         if status == .running {
+            // running: 시간 측정 시작/재개
             updatedResponse = nil
-            // running 상태 진입 시 startedAt 설정 (이미 running이면 유지)
-            updatedStartedAt = existing.status == .running ? existing.startedAt : now
-            updatedDuration = existing.duration
-        } else {
+            if resetDuration {
+                // UserPromptSubmit: 새 프롬프트 시작, duration 초기화
+                updatedStartedAt = now
+                updatedDuration = nil
+            } else if existing.status == .running {
+                // 이미 running: 유지
+                updatedStartedAt = existing.startedAt
+                updatedDuration = existing.duration
+            } else {
+                // permission/finished 등에서 재개: 기존 duration 유지
+                updatedStartedAt = now
+                updatedDuration = existing.duration
+            }
+        } else if status == .permission {
+            // permission: 일시정지 (현재까지 시간 저장)
             updatedResponse = existing.lastResponse
-            // 완료 시 duration 계산 (startedAt이 있으면)
             if let startedAt = existing.startedAt {
-                updatedDuration = now - startedAt
+                let elapsed = now - startedAt
+                updatedDuration = (existing.duration ?? 0) + elapsed
+            } else {
+                updatedDuration = existing.duration
+            }
+            updatedStartedAt = nil
+        } else {
+            // finished, ended 등 완료 상태
+            updatedResponse = existing.lastResponse
+            if let startedAt = existing.startedAt {
+                let elapsed = now - startedAt
+                updatedDuration = (existing.duration ?? 0) + elapsed
             } else {
                 updatedDuration = existing.duration
             }
@@ -151,7 +182,15 @@ enum SessionStore {
         )
 
         sessions.remove(at: index)
-        sessions.insert(updated, at: 0)
+        if reorder {
+            // 같은 location 그룹 내 첫 번째 위치에 삽입 (그룹 순서 유지)
+            let insertIndex = sessions.firstIndex { $0.location == updated.location } ?? 0
+            sessions.insert(updated, at: insertIndex)
+        } else {
+            // 순서 유지 (원래 위치에 삽입)
+            // min 필요: remove 후 index가 배열 크기와 같아질 수 있음 (마지막 요소였던 경우)
+            sessions.insert(updated, at: min(index, sessions.count))
+        }
         saveSessions(sessions)
     }
 
@@ -212,5 +251,54 @@ enum SessionStore {
         var sessions = loadSessions()
         sessions.removeAll { $0.id == trimmedId }
         saveSessions(sessions)
+        // seen 목록에서도 제거
+        markSessionAsUnseen(sessionId: sessionId)
+    }
+
+    // MARK: - Seen 상태 관리
+
+    /// 확인된 세션 ID 목록 로드
+    static func loadSeenSessionIds() -> Set<String> {
+        defaults.synchronize()
+        guard let data = defaults.data(forKey: seenSessionsKey),
+              let ids = try? JSONDecoder().decode(Set<String>.self, from: data) else {
+            return []
+        }
+        return ids
+    }
+
+    /// 확인된 세션 ID 목록 저장
+    private static func saveSeenSessionIds(_ ids: Set<String>) {
+        guard let data = try? JSONEncoder().encode(ids) else {
+            return
+        }
+        defaults.set(data, forKey: seenSessionsKey)
+        defaults.synchronize()
+        notifySessionsUpdated()
+    }
+
+    /// 세션을 확인됨으로 표시
+    static func markSessionAsSeen(sessionId: String?) {
+        let trimmedId = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmedId.isEmpty else { return }
+        var seenIds = loadSeenSessionIds()
+        seenIds.insert(trimmedId)
+        saveSeenSessionIds(seenIds)
+    }
+
+    /// 세션을 미확인으로 표시 (running 상태로 전환 시)
+    static func markSessionAsUnseen(sessionId: String?) {
+        let trimmedId = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmedId.isEmpty else { return }
+        var seenIds = loadSeenSessionIds()
+        seenIds.remove(trimmedId)
+        saveSeenSessionIds(seenIds)
+    }
+
+    /// 세션이 확인되었는지 여부
+    static func isSessionSeen(sessionId: String?) -> Bool {
+        let trimmedId = sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmedId.isEmpty else { return true }
+        return loadSeenSessionIds().contains(trimmedId)
     }
 }

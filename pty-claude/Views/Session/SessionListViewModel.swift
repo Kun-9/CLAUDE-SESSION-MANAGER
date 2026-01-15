@@ -34,6 +34,33 @@ enum SessionLayoutMode: String, CaseIterable, Identifiable {
     }
 }
 
+/// 세션 상태 필터 (다중 선택 가능)
+enum SessionStatusFilter: String, CaseIterable, Identifiable, Codable {
+    case running = "진행중"
+    case finished = "완료"
+    case ended = "종료"
+
+    var id: String { rawValue }
+
+    /// 해당 필터에 포함되는 상태들
+    func matches(_ status: SessionStatus) -> Bool {
+        switch self {
+        case .running: return status == .running || status == .permission
+        case .finished: return status == .finished
+        case .ended: return status == .ended
+        }
+    }
+
+    /// 필터 고유 색상
+    var tint: Color {
+        switch self {
+        case .running: return .green
+        case .finished: return .blue
+        case .ended: return .red
+        }
+    }
+}
+
 // MARK: - ViewModel
 
 @MainActor
@@ -46,6 +73,10 @@ final class SessionListViewModel: ObservableObject {
     }
     @Published var layoutMode: SessionLayoutMode = .list {
         didSet { saveLayoutMode() }
+    }
+    /// 선택된 상태 필터들 (빈 Set = 전체 표시)
+    @Published var statusFilters: Set<SessionStatusFilter> = [] {
+        didSet { saveStatusFilter() }
     }
     @Published var collapsedSectionIds: Set<String> = [] {
         didSet { saveCollapsedSections() }
@@ -90,16 +121,35 @@ final class SessionListViewModel: ObservableObject {
             .filter { $0.status != .normal }
     }
 
-    /// 세션 삭제 (아카이브 + 세션 레코드 모두 삭제)
+    /// 세션 삭제 (Claude Code 세션 파일 + 아카이브 + 세션 레코드 모두 삭제)
     func deleteSession(_ session: SessionItem) {
+        ClaudeSessionService.deleteSession(sessionId: session.id, location: session.location)
         TranscriptArchiveStore.delete(sessionId: session.id)
         SessionStore.deleteSession(sessionId: session.id)
         loadSessions()
     }
 
-    /// 위치별 세션 섹션 반환
+    /// 세션 상태 수동 변경 (완료/종료만 가능, 진행중은 HOOK 전용)
+    func changeSessionStatus(_ session: SessionItem, to status: SessionStatus) {
+        guard status == .finished || status == .ended else { return }
+        let recordStatus = SessionStore.SessionRecordStatus(rawValue: status.rawValue) ?? .finished
+        SessionStore.updateSessionStatus(sessionId: session.id, status: recordStatus, reorder: false)
+        loadSessions()
+    }
+
+    /// 필터링된 세션 목록 (빈 필터 = 전체 표시)
+    var filteredSessions: [SessionItem] {
+        if statusFilters.isEmpty {
+            return sessions
+        }
+        return sessions.filter { session in
+            statusFilters.contains { $0.matches(session.status) }
+        }
+    }
+
+    /// 위치별 세션 섹션 반환 (필터 적용)
     var sessionSections: [SessionSection] {
-        SessionGroupingService.groupByLocation(sessions)
+        SessionGroupingService.groupByLocation(filteredSessions)
     }
 
     /// 섹션 접힘 상태 확인
@@ -118,12 +168,20 @@ final class SessionListViewModel: ObservableObject {
 
     // MARK: - Private Helpers
 
-    /// 사용자 설정 로드 (그룹핑 모드, 레이아웃 모드, 접힘 상태)
+    /// 사용자 설정 로드 (그룹핑 모드, 레이아웃 모드, 필터, 접힘 상태)
     private func loadPreferences() {
         let storedMode = SettingsStore.defaults.string(forKey: SettingsKeys.sessionListMode) ?? ""
         listMode = SessionListMode(rawValue: storedMode) ?? .byLocation
         let storedLayout = SettingsStore.defaults.string(forKey: SettingsKeys.sessionLayoutMode) ?? ""
         layoutMode = SessionLayoutMode(rawValue: storedLayout) ?? .list
+        // 다중 선택 필터 로드 (JSON 배열)
+        if let storedFilter = SettingsStore.defaults.string(forKey: SettingsKeys.sessionStatusFilter),
+           let data = storedFilter.data(using: .utf8),
+           let filters = try? JSONDecoder().decode([SessionStatusFilter].self, from: data) {
+            statusFilters = Set(filters)
+        } else {
+            statusFilters = []
+        }
         let storedCollapsed = SettingsStore.defaults.string(forKey: SettingsKeys.sessionCollapsedSections) ?? "[]"
         collapsedSectionIds = SessionGroupingService.decodeCollapsedSections(storedCollapsed)
     }
@@ -134,6 +192,15 @@ final class SessionListViewModel: ObservableObject {
 
     private func saveLayoutMode() {
         SettingsStore.defaults.set(layoutMode.rawValue, forKey: SettingsKeys.sessionLayoutMode)
+    }
+
+    private func saveStatusFilter() {
+        // 다중 선택 필터 저장 (JSON 배열)
+        let filters = Array(statusFilters)
+        if let data = try? JSONEncoder().encode(filters),
+           let json = String(data: data, encoding: .utf8) {
+            SettingsStore.defaults.set(json, forKey: SettingsKeys.sessionStatusFilter)
+        }
     }
 
     private func saveCollapsedSections() {

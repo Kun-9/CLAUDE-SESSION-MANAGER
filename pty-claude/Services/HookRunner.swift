@@ -127,10 +127,13 @@ enum HookRunner {
     }
 
     private static func handleUserPromptSubmit(_ event: HookEvent) {
+        // 새 작업 시작 시 미확인 상태로 전환 (완료 후 반짝이게)
+        SessionStore.markSessionAsUnseen(sessionId: event.session_id)
         SessionStore.updateSessionStatus(
             sessionId: event.session_id,
             status: .running,
-            prompt: event.prompt
+            prompt: event.prompt,
+            resetDuration: true  // 새 프롬프트 시작 시 시간 초기화
         )
     }
 
@@ -142,7 +145,20 @@ enum HookRunner {
     }
 
     private static func handleSessionEnd(_ event: HookEvent) {
-        SessionStore.updateSessionStatus(sessionId: event.session_id, status: .ended)
+        let trimmedId = event.session_id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmedId.isEmpty else { return }
+
+        // 세션 정보 확인
+        let sessions = SessionStore.loadSessions()
+        guard let session = sessions.first(where: { $0.id == trimmedId }) else { return }
+
+        // 대화가 없으면 (lastPrompt가 nil이면) 세션 삭제
+        // 최소 한 번의 대화가 있어야 종료 카드가 생성됨
+        if session.lastPrompt == nil {
+            SessionStore.deleteSession(sessionId: event.session_id)
+        } else {
+            SessionStore.updateSessionStatus(sessionId: event.session_id, status: .ended)
+        }
     }
 
     // 허용 도구 목록 기반 필터링

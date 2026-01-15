@@ -83,13 +83,20 @@ enum ClaudeSettingsService {
         }
     }
 
-    // hook 섹션만 포함한 JSON 스니펫 생성
+    // hook 섹션만 포함한 JSON 스니펫 생성 (바로 붙여넣기 가능하도록 최상위 {} 제거)
     static func hooksJSONSnippet(command: String) -> String? {
         let before = loadSettings(url: settingsURL)
         let updated = updatedSettings(from: before, command: command)
         let hooks = updated["hooks"] as? [String: Any] ?? [:]
-        let root: [String: Any] = ["hooks": hooks]
-        return prettyJSON(from: root)
+        guard let hooksJSON = prettyJSON(from: ["hooks": hooks]) else { return nil }
+        // 최상위 { } 제거: "{\n  ...\n}" -> "  ..."
+        let lines = hooksJSON.components(separatedBy: "\n")
+        guard lines.count >= 2 else { return hooksJSON }
+        // 첫 줄({)과 마지막 줄(}) 제거 후 들여쓰기 한 단계 줄임
+        let innerLines = lines.dropFirst().dropLast().map { line in
+            line.hasPrefix("  ") ? String(line.dropFirst(2)) : line
+        }
+        return innerLines.joined(separator: "\n")
     }
 
     static func hooksNeedUpdate(command: String) -> Bool {

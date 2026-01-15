@@ -13,7 +13,7 @@ struct SessionDetailSheet: View {
     @StateObject private var viewModel: SessionArchiveViewModel
     @State private var selectedEntryId: UUID?
     @State private var showDeleteConfirmation = false
-    @State private var showFullTranscript = false
+    @State private var showDetail = false
     @Environment(\.dismiss) private var dismiss
 
     init(session: SessionItem, onClose: (() -> Void)? = nil) {
@@ -40,21 +40,10 @@ struct SessionDetailSheet: View {
                 deleteSession()
             }
         } message: {
-            Text("'\(session.name)' 세션을 삭제하시겠습니까?\n아카이브된 대화 기록도 함께 삭제됩니다.")
-        }
-        .onAppear {
-            selectDefaultEntryIfNeeded()
+            Text(deleteConfirmationMessage)
         }
         .onExitCommand {
             close()
-        }
-        .onChange(of: viewModel.transcript?.entries.count) { _, _ in
-            // transcript 업데이트 시 적절한 항목 선택
-            selectDefaultEntryIfNeeded()
-        }
-        .onChange(of: viewModel.isRunning) { _, _ in
-            // running 상태 변경 시 적절한 항목 선택
-            selectDefaultEntryIfNeeded()
         }
     }
 
@@ -64,17 +53,23 @@ struct SessionDetailSheet: View {
     private var conversationContent: some View {
         SessionTranscriptSplitView(
             entries: combinedEntries,
+            allEntries: allEntries,
             selectedEntryId: $selectedEntryId,
-            showFullTranscript: $showFullTranscript,
+            showDetail: $showDetail,
             isRunning: viewModel.isRunning
         )
     }
 
-    /// 아카이브된 entries + 실시간 entry 통합
+    /// 전체 엔트리 (중간 응답 판별용)
+    private var allEntries: [TranscriptEntry] {
+        viewModel.transcript?.entries ?? []
+    }
+
+    /// 아카이브된 entries + 실시간 entry 통합 (필터링 적용)
     private var combinedEntries: [TranscriptEntry] {
         var entries = TranscriptFilter.filteredEntries(
-            viewModel.transcript?.entries ?? [],
-            showFullTranscript: showFullTranscript
+            allEntries,
+            showDetail: showDetail
         )
         if let liveEntry = viewModel.liveEntry {
             entries.append(liveEntry)
@@ -101,6 +96,12 @@ struct SessionDetailSheet: View {
             }
             Spacer()
             SessionStatusBadge(status: viewModel.currentSession?.status ?? session.status)
+            Button {
+                ITermService.resumeSession(sessionId: session.id, location: session.location)
+            } label: {
+                Label("대화 이어하기", systemImage: "terminal")
+            }
+            .buttonStyle(.bordered)
             Button(role: .destructive) {
                 showDeleteConfirmation = true
             } label: {
@@ -108,6 +109,15 @@ struct SessionDetailSheet: View {
             }
             .buttonStyle(.bordered)
         }
+    }
+
+    private var deleteConfirmationMessage: String {
+        var message = "'\(session.name)' 세션을 삭제하시겠습니까?\n"
+        message += "Claude Code 세션 파일과 아카이브가 모두 삭제되며 복구할 수 없습니다."
+        if viewModel.isRunning {
+            message += "\n\n⚠️ 현재 진행 중인 세션입니다."
+        }
+        return message
     }
 
     private func deleteSession() {
@@ -120,23 +130,6 @@ struct SessionDetailSheet: View {
             onClose()
         } else {
             dismiss()
-        }
-    }
-
-    /// 적절한 항목이 선택되도록 보장 (combinedEntries 기반)
-    private func selectDefaultEntryIfNeeded() {
-        let allEntries = combinedEntries
-
-        // 현재 선택이 유효한지 확인
-        let isCurrentSelectionValid = selectedEntryId.map { id in
-            allEntries.contains { $0.id == id }
-        } ?? false
-
-        // 유효하지 않으면 마지막 항목 선택
-        if !isCurrentSelectionValid {
-            withAnimation {
-                selectedEntryId = allEntries.last?.id
-            }
         }
     }
 }

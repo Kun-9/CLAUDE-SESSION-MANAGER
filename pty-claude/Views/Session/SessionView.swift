@@ -14,14 +14,10 @@ struct SessionView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                SectionHeaderView(
-                    title: "Session",
-                    subtitle: "Manage your claude-code sessions."
-                )
-
-                // 컨트롤 영역: 그룹핑 모드 + 레이아웃 모드
-                HStack(spacing: 16) {
-                    SessionListModePicker(selection: $viewModel.listMode)
+                // 컨트롤 영역: 그룹핑 모드 + 필터 + 레이아웃 모드
+                HStack(spacing: 12) {
+                    SessionListModeToggle(selection: $viewModel.listMode)
+                    SessionStatusFilterToggle(selection: $viewModel.statusFilters)
                     Spacer()
                     SessionLayoutToggle(selection: $viewModel.layoutMode)
                 }
@@ -70,7 +66,7 @@ struct SessionView: View {
     @ViewBuilder
     private var allListView: some View {
         LazyVStack(spacing: 12) {
-            ForEach(viewModel.sessions) { session in
+            ForEach(viewModel.filteredSessions) { session in
                 sessionButton(for: session)
             }
         }
@@ -79,9 +75,12 @@ struct SessionView: View {
     @ViewBuilder
     private var allGridView: some View {
         SessionGridView(
-            sessions: viewModel.sessions,
+            sessions: viewModel.filteredSessions,
             onSelect: { selectedSession = $0 },
-            onDelete: { sessionToDelete = $0 }
+            onDelete: { sessionToDelete = $0 },
+            onChangeStatus: { session, status in
+                viewModel.changeSessionStatus(session, to: status)
+            }
         )
     }
 
@@ -119,41 +118,144 @@ struct SessionView: View {
             collapsedIds: viewModel.collapsedSectionIds,
             onToggleSection: { viewModel.toggleSection($0) },
             onSelectSession: { selectedSession = $0 },
-            onDeleteSession: { sessionToDelete = $0 }
+            onDeleteSession: { sessionToDelete = $0 },
+            onChangeStatus: { session, status in
+                viewModel.changeSessionStatus(session, to: status)
+            }
         )
     }
 
     @ViewBuilder
     private func sessionButton(for session: SessionItem) -> some View {
         Button {
+            // 클릭 시 확인됨으로 표시
+            if session.isUnseen {
+                SessionStore.markSessionAsSeen(sessionId: session.id)
+            }
             selectedSession = session
         } label: {
             SessionCardView(session: session, style: .full)
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button(role: .destructive) {
-                sessionToDelete = session
-            } label: {
-                Label("삭제", systemImage: "trash")
-            }
+            sessionStatusMenu(for: session)
+        }
+    }
+
+    @ViewBuilder
+    private func sessionStatusMenu(for session: SessionItem) -> some View {
+        Button {
+            viewModel.changeSessionStatus(session, to: .finished)
+        } label: {
+            Label("완료로 변경", systemImage: "checkmark.circle")
+        }
+        .disabled(session.status == .finished)
+
+        Button {
+            viewModel.changeSessionStatus(session, to: .ended)
+        } label: {
+            Label("종료로 변경", systemImage: "xmark.circle")
+        }
+        .disabled(session.status == .ended)
+
+        Divider()
+
+        Button {
+            ITermService.resumeSession(sessionId: session.id, location: session.location)
+        } label: {
+            Label("대화 이어하기", systemImage: "terminal")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            sessionToDelete = session
+        } label: {
+            Label("삭제", systemImage: "trash")
         }
     }
 }
 
-// MARK: - 그룹핑 모드 피커
+// MARK: - 상태 필터 토글 (다중 선택)
 
-private struct SessionListModePicker: View {
+private struct SessionStatusFilterToggle: View {
+    @Binding var selection: Set<SessionStatusFilter>
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(SessionStatusFilter.allCases) { filter in
+                filterButton(for: filter)
+            }
+        }
+        .padding(3)
+        .background {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private func filterButton(for filter: SessionStatusFilter) -> some View {
+        let isSelected = selection.contains(filter)
+        Button {
+            // 토글 동작: 선택/해제
+            if selection.contains(filter) {
+                selection.remove(filter)
+            } else {
+                selection.insert(filter)
+            }
+        } label: {
+            Text(filter.rawValue)
+                .font(.system(size: 12, weight: .medium))
+                .frame(height: 28)
+                .padding(.horizontal, 10)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(isSelected ? filter.tint : Color.secondary.opacity(0.5))
+    }
+}
+
+// MARK: - 그룹핑 모드 토글
+
+private struct SessionListModeToggle: View {
     @Binding var selection: SessionListMode
 
     var body: some View {
-        Picker("Session view", selection: $selection) {
+        HStack(spacing: 2) {
             ForEach(SessionListMode.allCases) { mode in
-                Text(mode.rawValue).tag(mode)
+                Button {
+                    selection = mode
+                } label: {
+                    Text(mode.rawValue)
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(height: 28)
+                        .padding(.horizontal, 12)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .background(
+                    selection == mode
+                        ? Color(NSColor.controlBackgroundColor)
+                        : Color.clear
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .foregroundStyle(selection == mode ? .primary : .tertiary)
             }
         }
-        .pickerStyle(.segmented)
-        .frame(maxWidth: 320)
+        .padding(3)
+        .background {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+        }
     }
 }
 
@@ -169,8 +271,8 @@ private struct SessionLayoutToggle: View {
                     selection = mode
                 } label: {
                     Image(systemName: mode.icon)
-                        .font(.system(size: 14, weight: .medium))
-                        .frame(width: 32, height: 32)
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

@@ -12,6 +12,7 @@ struct SessionSectionHeader: View {
     let subtitle: String?
     let count: Int
     let isCollapsed: Bool
+    var onTerminalTap: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -30,6 +31,17 @@ struct SessionSectionHeader: View {
                         Capsule(style: .continuous)
                             .fill(Color.primary.opacity(0.08))
                     )
+                if let onTerminalTap {
+                    Button {
+                        onTerminalTap()
+                    } label: {
+                        Image(systemName: "terminal")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("iTerm에서 디렉토리 열기")
+                }
             }
             if let subtitle {
                 Text(subtitle)

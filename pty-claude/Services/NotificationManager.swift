@@ -15,6 +15,9 @@ enum NotificationManager {
 
     // 즉시 알림 전송 + 선택적 사운드 재생
     static func send(title: String, body: String) {
+        // 알림 비활성화 시 조기 종료
+        guard SettingsStore.notificationsEnabled() else { return }
+
         // CLI 훅 도구에서는 UNUserNotificationCenter가 예외를 발생시키므로 우회
         if !isAppBundle {
             sendLegacy(title: title, body: body)
