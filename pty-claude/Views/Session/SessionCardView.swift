@@ -100,7 +100,7 @@ struct SessionCardView: View {
             }
         }
         .overlay {
-            // 미확인 완료 세션에 반짝이는 테두리
+            // 미확인 완료 세션: 반짝이는 테두리
             if session.isUnseen {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .strokeBorder(
@@ -119,6 +119,10 @@ struct SessionCardView: View {
                 isGlowing = true
             }
         }
+        .onChange(of: session.isUnseen) { _, newValue in
+            isGlowing = newValue
+        }
+        .id(session.id)
         .hoverCardStyle(cornerRadius: 18)
     }
 
@@ -164,7 +168,8 @@ struct SessionCardView: View {
             Spacer(minLength: 0)
 
             // 하단: 시간 + 상태 인디케이터
-            HStack(spacing: 4) {
+            // .bottom 정렬로 VStack 높이 변화에 관계없이 인디케이터 위치 일관성 유지
+            HStack(alignment: .bottom, spacing: 4) {
                 if session.status == .running, let startedAt = session.startedAt {
                     ElapsedTimeText(startedAt: startedAt, baseDuration: session.duration ?? 0)
                 } else {
@@ -190,19 +195,35 @@ struct SessionCardView: View {
                 .fill(session.status.background)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(
-                    session.status.tint.opacity(session.isUnseen ? (isGlowing ? 1.0 : 0.3) : 0.3),
-                    lineWidth: session.isUnseen && isGlowing ? 2 : 1
-                )
-                .animation(
-                    session.isUnseen
-                        ? .easeInOut(duration: 1.2).repeatForever(autoreverses: true)
-                        : .default,
-                    value: isGlowing
-                )
+            // 미확인 완료 세션: 반짝이는 테두리
+            if session.isUnseen {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(
+                        session.status.tint,
+                        lineWidth: isGlowing ? 2 : 1
+                    )
+                    .opacity(isGlowing ? 1.0 : 0.3)
+                    .animation(
+                        .easeInOut(duration: 1.2).repeatForever(autoreverses: true),
+                        value: isGlowing
+                    )
+            }
+            // 일반 테두리
+            else {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(session.status.tint.opacity(0.3), lineWidth: 1)
+            }
         }
         .hoverCardStyle(cornerRadius: 10)
+        .onAppear {
+            if session.isUnseen {
+                isGlowing = true
+            }
+        }
+        .onChange(of: session.isUnseen) { _, newValue in
+            isGlowing = newValue
+        }
+        .id(session.id)
     }
 }
 
@@ -284,6 +305,7 @@ struct CommandHoverResumeOverlay: ViewModifier {
     @State private var isHovering = false
     @State private var isCommandPressed = false
     @State private var eventMonitor: Any?
+    @State private var activationObserver: NSObjectProtocol?
 
     private var showOverlay: Bool {
         isHovering && isCommandPressed
@@ -293,18 +315,35 @@ struct CommandHoverResumeOverlay: ViewModifier {
         content
             .blur(radius: showOverlay ? 2 : 0)
             .overlay {
+                // 테두리 강조 (hover 시)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.primary.opacity(isHovering ? 0.35 : 0.08), lineWidth: isHovering ? 1.5 : 1)
+            }
+            .shadow(
+                color: Color.black.opacity(isHovering ? 0.20 : 0.06),
+                radius: isHovering ? 12 : 8,
+                x: 0,
+                y: isHovering ? 6 : 4
+            )
+            .scaleEffect(isHovering ? 1.02 : 1.0)
+            .overlay {
                 resumeOverlay
                     .opacity(showOverlay ? 1 : 0)
             }
             .animation(.easeInOut(duration: 0.15), value: showOverlay)
+            .animation(.easeOut(duration: 0.15), value: isHovering)
             .onHover { hovering in
                 isHovering = hovering
             }
             .onAppear {
+                // 현재 Command 키 상태 확인
+                isCommandPressed = NSEvent.modifierFlags.contains(.command)
                 startMonitoringCommand()
+                startMonitoringActivation()
             }
             .onDisappear {
                 stopMonitoringCommand()
+                stopMonitoringActivation()
             }
     }
 
@@ -340,6 +379,25 @@ struct CommandHoverResumeOverlay: ViewModifier {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
+        }
+    }
+
+    /// 앱 활성화 시 Command 키 상태 재확인
+    /// - Note: cmd+클릭으로 iTerm 전환 후 돌아올 때 상태 동기화
+    private func startMonitoringActivation() {
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            isCommandPressed = NSEvent.modifierFlags.contains(.command)
+        }
+    }
+
+    private func stopMonitoringActivation() {
+        if let observer = activationObserver {
+            NotificationCenter.default.removeObserver(observer)
+            activationObserver = nil
         }
     }
 }

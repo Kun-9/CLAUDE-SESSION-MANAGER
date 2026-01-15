@@ -16,14 +16,15 @@ struct HoverCardStyle: ViewModifier {
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.primary.opacity(isHovered ? hoverStrokeOpacity : baseStrokeOpacity), lineWidth: 1)
+                    .stroke(Color.primary.opacity(isHovered ? hoverStrokeOpacity : baseStrokeOpacity), lineWidth: isHovered ? 1.5 : 1)
             )
             .shadow(
                 color: Color.black.opacity(isHovered ? hoverShadowOpacity : baseShadowOpacity),
-                radius: shadowRadius,
+                radius: isHovered ? shadowRadius + 4 : shadowRadius,
                 x: 0,
-                y: shadowYOffset
+                y: isHovered ? shadowYOffset + 2 : shadowYOffset
             )
+            .scaleEffect(isHovered ? 1.02 : 1.0)
             .onHover { hovering in
                 withAnimation(.easeOut(duration: 0.15)) {
                     isHovered = hovering
@@ -36,9 +37,9 @@ extension View {
     func hoverCardStyle(
         cornerRadius: CGFloat,
         baseStrokeOpacity: Double = 0.08,
-        hoverStrokeOpacity: Double = 0.16,
+        hoverStrokeOpacity: Double = 0.35,
         baseShadowOpacity: Double = 0.06,
-        hoverShadowOpacity: Double = 0.12,
+        hoverShadowOpacity: Double = 0.20,
         shadowRadius: CGFloat = 8,
         shadowYOffset: CGFloat = 4
     ) -> some View {
