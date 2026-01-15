@@ -82,11 +82,11 @@
 
 ## UI 기능
 
-- [ ] 상세 카드에 터미널 열기 버튼 추가
-  - 설명: 격자(SessionGridView) 섹션 헤더에는 `TerminalService.openDirectory()` 버튼이 있으나, 상세 시트(SessionDetailSheet)에는 "대화 이어하기"(resumeSession) 버튼만 존재. 해당 세션 디렉토리에서 새 터미널을 여는 버튼 추가 필요
+- [ ] Full 레이아웃 카드에 터미널 열기 버튼 추가
+  - 설명: 격자(SessionGridView) 섹션 헤더에는 `TerminalService.openDirectory()` 버튼이 있으나, SessionCardView의 full 레이아웃에는 터미널 열기 버튼 없음. 해당 세션 디렉토리에서 새 터미널을 여는 버튼 추가 필요
   - 비용: XS
   - 영향도: Low
-  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionDetailSheet.swift`
+  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionCardView.swift`
 
 - [x] 즐겨찾기 섹션 기능
   - 설명: 디렉토리 섹션을 즐겨찾기로 지정 가능. 섹션 헤더 왼쪽에 별(★) 아이콘으로 표시/토글. 즐겨찾기 섹션은 세션이 없어도 '새 세션' 버튼과 함께 항상 표시됨
@@ -128,6 +128,26 @@
   - 관련 파일: `ClaudeSessionManager/Services/TerminalService.swift`
   - 완료일: 2026-01-16
 
+## 설정 UI
+
+- [x] 설정 탭 이름 변경 (Claude → Hooks)
+  - 설명: 설정 시트의 "Claude" 탭 이름을 "Hooks"로 변경. 탭 기능이 Claude 훅 설정이므로 더 명확한 이름으로 수정
+  - 해결: SettingsTab enum에서 `.claude` → `.hooks`로 변경, 관련 참조 및 주석 업데이트
+  - 비용: XS
+  - 영향도: Low
+  - 관련 파일: `ClaudeSessionManager/Views/Settings/SettingsSheet.swift`
+  - 완료일: 2026-01-16
+
+## 버그
+
+- [x] Preview Changes 첫 클릭 시 빈 화면 버그
+  - 설명: 설정 > Hooks 탭에서 "Preview Changes" 버튼을 처음 누르면 빈 화면이 표시되고, 두 번째 클릭에야 정상적으로 미리보기가 표시됨
+  - 해결: 상태 업데이트와 시트 표시의 SwiftUI 렌더링 타이밍 문제. `DispatchQueue.main.async`로 시트 표시를 다음 런루프로 지연하여 해결
+  - 비용: S
+  - 영향도: Mid
+  - 관련 파일: `ClaudeSessionManager/Views/Settings/SettingsSheet.swift`
+  - 완료일: 2026-01-16
+
 ## 마크다운 렌더링
 
 - [ ] 마크다운 렌더링 개선
@@ -140,8 +160,26 @@
       - 설명: swift-markdown(Apple), Ink, Down 등 기존 라이브러리 비교 검토
       - 비용: S
     - [ ] 코드 블록 타입별 신택스 하이라이팅
-      - 설명: ` ```swift `, ` ```python ` 등 언어 타입 파싱 후 색상 하이라이팅 적용. Highlightr 또는 TreeSitter 검토 필요
+      - 설명: ` ```swift `, ` ```python ` 등 언어 타입 파싱 후 색상 하이라이팅 적용. **HighlightSwift** 라이브러리 사용 (185개 언어, 30+ 테마, SwiftUI 네이티브)
       - 비용: M
     - [ ] 마크다운 표(Table) 렌더링
       - 설명: `| col1 | col2 |` 형식의 GFM 표 파싱 및 렌더링. Grid 또는 HStack/VStack 조합으로 구현
       - 비용: M
+
+## Debug 기능
+
+- [ ] Debug 패널 payload 복사 버튼 추가
+  - 설명: Payload 헤더 영역에 복사 버튼 추가. 클릭 시 `rawPayload`(JSON 문자열)를 클립보드에 복사. 기존 `ClipboardService.copy()` 활용
+  - 비용: XS
+  - 영향도: Low
+  - 관련 파일: `ClaudeSessionManager/Views/Debug/DebugView.swift`
+
+## 버그
+
+- [ ] 권한 요청 툴팁 z-index 문제
+  - 설명: 선택지(AskUserQuestion) 권한 요청에서 옵션 hover 시 표시되는 description 툴팁이 하단 요소(Submit 버튼 등) 아래에 렌더링됨. 툴팁이 최상위 레이어에 표시되어야 함
+  - 원인: 툴팁 오버레이가 InlineQuestionSelectionView 내부에 있어 부모 레벨의 Submit 버튼보다 zIndex가 낮음
+  - 해결방안: 툴팁 상태를 InlinePermissionRequestView로 올려서 Submit 버튼과 같은 레벨에서 렌더링
+  - 비용: S
+  - 영향도: Mid
+  - 관련 파일: `ClaudeSessionManager/Views/Components/PermissionRequestView.swift`
