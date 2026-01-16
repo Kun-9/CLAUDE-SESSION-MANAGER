@@ -12,13 +12,13 @@
 			containerPortal = E0284B4A2F14FBC300DCA732 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = E0D0C0A12F16000100ABC001;
-			remoteInfo = "pty-claude-hook";
+			remoteInfo = "ClaudeSessionManager-hook";
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		E0284B522F14FBC300DCA732 /* pty-claude.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "pty-claude.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		E0D0C0A02F16000100ABC001 /* pty-claude-hook */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "pty-claude-hook"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E0D0C0A02F16000100ABC001 /* ClaudeSessionManager-hook */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "ClaudeSessionManager-hook"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -27,9 +27,9 @@
 			path = "pty-claude";
 			sourceTree = "<group>";
 		};
-		E0D0C0A72F16000100ABC001 /* pty-claude-hook */ = {
+		E0D0C0A72F16000100ABC001 /* ClaudeSessionManager-hook */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "pty-claude-hook";
+			path = "ClaudeSessionManager-hook";
 			sourceTree = "<group>";
 		};
 		E0D0C0A82F16000100ABC001 /* pty-claude/Services */ = {
@@ -80,7 +80,7 @@
 			isa = PBXGroup;
 			children = (
 				E0284B522F14FBC300DCA732 /* pty-claude.app */,
-				E0D0C0A02F16000100ABC001 /* pty-claude-hook */,
+				E0D0C0A02F16000100ABC001 /* ClaudeSessionManager-hook */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -88,7 +88,7 @@
 		E0284B952F15F61700DCA732 /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
-				E0D0C0A72F16000100ABC001 /* pty-claude-hook */,
+				E0D0C0A72F16000100ABC001 /* ClaudeSessionManager-hook */,
 				E0D0C0A82F16000100ABC001 /* pty-claude/Services */,
 				E0D0C0A92F16000100ABC001 /* pty-claude/Models */,
 				E0D0C0AA2F16000100ABC001 /* pty-claude/Utilities */,
@@ -123,9 +123,9 @@
 			productReference = E0284B522F14FBC300DCA732 /* pty-claude.app */;
 			productType = "com.apple.product-type.application";
 		};
-		E0D0C0A12F16000100ABC001 /* pty-claude-hook */ = {
+		E0D0C0A12F16000100ABC001 /* ClaudeSessionManager-hook */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = E0D0C0A42F16000100ABC001 /* Build configuration list for PBXNativeTarget "pty-claude-hook" */;
+			buildConfigurationList = E0D0C0A42F16000100ABC001 /* Build configuration list for PBXNativeTarget "ClaudeSessionManager-hook" */;
 			buildPhases = (
 				E0D0C0A22F16000100ABC001 /* Sources */,
 				E0D0C0A32F16000100ABC001 /* Frameworks */,
@@ -135,16 +135,16 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				E0D0C0A72F16000100ABC001 /* pty-claude-hook */,
+				E0D0C0A72F16000100ABC001 /* ClaudeSessionManager-hook */,
 				E0D0C0A82F16000100ABC001 /* pty-claude/Services */,
 				E0D0C0A92F16000100ABC001 /* pty-claude/Models */,
 				E0D0C0AA2F16000100ABC001 /* pty-claude/Utilities */,
 			);
-			name = "pty-claude-hook";
+			name = "ClaudeSessionManager-hook";
 			packageProductDependencies = (
 			);
-			productName = "pty-claude-hook";
-			productReference = E0D0C0A02F16000100ABC001 /* pty-claude-hook */;
+			productName = "ClaudeSessionManager-hook";
+			productReference = E0D0C0A02F16000100ABC001 /* ClaudeSessionManager-hook */;
 			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
@@ -180,7 +180,7 @@
 			projectRoot = "";
 			targets = (
 				E0284B512F14FBC300DCA732 /* pty-claude */,
-				E0D0C0A12F16000100ABC001 /* pty-claude-hook */,
+				E0D0C0A12F16000100ABC001 /* ClaudeSessionManager-hook */,
 			);
 		};
 /* End PBXProject section */
@@ -202,15 +202,15 @@
 			files = (
 			);
 			inputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/pty-claude-hook",
+				"$(BUILT_PRODUCTS_DIR)/ClaudeSessionManager-hook",
 			);
 			name = "Embed Hook Tool";
 			outputPaths = (
-				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/pty-claude-hook",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/ClaudeSessionManager-hook",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nSRC=\"${BUILT_PRODUCTS_DIR}/pty-claude-hook\"\nDST=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Resources/pty-claude-hook\"\nif [ -f \"$SRC\" ]; then\n  ditto \"$SRC\" \"$DST\"\n  chmod +x \"$DST\"\nelse\n  echo \"Hook tool not found at $SRC\"\n  exit 1\nfi\n";
+			shellScript = "set -e\nSRC=\"${BUILT_PRODUCTS_DIR}/ClaudeSessionManager-hook\"\nDST=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Resources/ClaudeSessionManager-hook\"\nif [ -f \"$SRC\" ]; then\n  ditto \"$SRC\" \"$DST\"\n  chmod +x \"$DST\"\nelse\n  echo \"Hook tool not found at $SRC\"\n  exit 1\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -234,7 +234,7 @@
 /* Begin PBXTargetDependency section */
 		E0D0C0AE2F16000200ABC001 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = E0D0C0A12F16000100ABC001 /* pty-claude-hook */;
+			target = E0D0C0A12F16000100ABC001 /* ClaudeSessionManager-hook */;
 			targetProxy = E0D0C0AD2F16000200ABC001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -475,7 +475,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E0D0C0A42F16000100ABC001 /* Build configuration list for PBXNativeTarget "pty-claude-hook" */ = {
+		E0D0C0A42F16000100ABC001 /* Build configuration list for PBXNativeTarget "ClaudeSessionManager-hook" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E0D0C0A52F16000100ABC001 /* Debug */,

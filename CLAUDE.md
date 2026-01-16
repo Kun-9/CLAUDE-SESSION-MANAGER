@@ -223,15 +223,12 @@ TYPE: 간단한 설명 (한글)
 xcodebuild -project ClaudeSessionManager.xcodeproj -scheme ClaudeSessionManager -configuration Debug build
 ```
 
-### 빌드 완료 후 자동 재실행
-UI 변경 작업 완료 시, 기존 앱을 종료하고 새로 빌드된 앱을 자동 실행:
-```bash
-pkill -9 ClaudeSessionManager 2>/dev/null; sleep 0.3; open /Users/kun-mini/Library/Developer/Xcode/DerivedData/ClaudeSessionManager-gjigodlvdeaqoffvdbjjipuoefef/Build/Products/Debug/ClaudeSessionManager.app
-```
-
 ### 빌드 + 재실행 한번에
+빌드 성공 시 기존 앱을 종료하고 새로 빌드된 앱을 자동 실행:
 ```bash
-xcodebuild -project ClaudeSessionManager.xcodeproj -scheme ClaudeSessionManager -configuration Debug build 2>&1 | grep -E "(error:|BUILD)" && pkill -9 ClaudeSessionManager 2>/dev/null; sleep 0.3; open /Users/kun-mini/Library/Developer/Xcode/DerivedData/ClaudeSessionManager-gjigodlvdeaqoffvdbjjipuoefef/Build/Products/Debug/ClaudeSessionManager.app
+xcodebuild -project ClaudeSessionManager.xcodeproj -scheme ClaudeSessionManager -configuration Debug build && \
+  pkill -9 ClaudeSessionManager 2>/dev/null; sleep 0.3; \
+  open "$(xcodebuild -project ClaudeSessionManager.xcodeproj -scheme ClaudeSessionManager -showBuildSettings 2>/dev/null | awk '/BUILT_PRODUCTS_DIR/ {print $3; exit}')/ClaudeSessionManager.app"
 ```
 
 ## AI 협업 규칙 (Claude Code + Codex CLI)
