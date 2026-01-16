@@ -261,6 +261,9 @@
     - [ ] ALLOW/DENY/ASK 버튼 스타일 개선
       - 설명: 버튼 색상, 크기, 아이콘 등 디자인 요소 검토 및 개선. 현재 Allow=초록, Deny=빨강은 직관적이나 Ask 버튼이 시각적으로 약함
       - 비용: XS
+    - [ ] 선택 화면 Enter 제출 기능
+      - 설명: 권한/선택 요청 화면에서 "Other" TextField 입력 후 Enter 키로 제출 가능하도록 개선. 버튼 활성화 조건(canSubmitWithAnswers)과 동일한 조건에서만 제출
+      - 비용: S
 
 ## 알림
 
@@ -297,3 +300,31 @@
     - [ ] TranscriptRowView에 토큰 표시 UI 추가
       - 설명: Assistant 메시지 하단에 토큰 사용량 표시 (예: "↓1.2K ↑350 💾5K"). 접이식 또는 hover로 상세 표시 고려
       - 비용: S
+
+## 리팩토링
+
+- [ ] 훅 의존 경량화
+  - 설명: 훅 이벤트 기반으로 단순화하여 폴링/파일 의존 최소화
+  - 비용: M (하위 합산)
+  - 영향도: Mid
+  - 하위 항목:
+    - [ ] 상태 enum 통합 (SessionRecordStatus → SessionStatus)
+      - 설명: 동일 케이스 중복 정의 제거. `SessionStatus`에 `Codable` 추가, `SessionRecordStatus` 삭제
+      - 비용: S
+      - 관련 파일: `SessionStore.swift`, `SessionModels.swift`, `SessionListViewModel.swift`
+    - [ ] .permission → .finished 아카이브 리로드 보장
+      - 설명: `handleSessionUpdate()` 조건을 `.running || .permission`으로 개선
+      - 비용: XS
+      - 관련 파일: `SessionArchiveViewModel.swift:114-119`
+    - [ ] DebugView 타이머 제거 → 이벤트 기반 갱신
+      - 설명: 1초 폴링 대신 `sessionsDidChangeNotification` 구독으로 훅 이벤트 시에만 갱신
+      - 비용: S
+      - 관련 파일: `DebugView.swift:14,59-62`
+    - [ ] 세션 파일 삭제 기능 설정 옵션화
+      - 설명: `ClaudeSessionService.deleteSession()` 호출을 설정에서 on/off 가능하게. Claude Code 내부 경로 규칙 변경 시 호환성 문제 대비
+      - 비용: S
+      - 관련 파일: `ClaudeSessionService.swift`, `SettingsStore.swift`, `SessionArchiveViewModel.swift`
+    - [ ] [고려] transcript 파일 의존 최소화
+      - 설명: Stop 훅 시 transcript.jsonl 파싱 의존도 검토. 훅 페이로드 정보만 사용하거나 아카이빙을 선택적 기능으로 분리 가능성 검토
+      - 비용: L (구조 변경 시)
+      - 관련 파일: `TranscriptArchiveService.swift`, `HookRunner.swift`
