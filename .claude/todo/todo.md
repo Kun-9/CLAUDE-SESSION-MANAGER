@@ -82,6 +82,19 @@
 
 ## UI 기능
 
+- [ ] 이미 실행 중인 세션 감지 기능
+  - 설명: Resume 버튼 클릭 시 해당 Claude 세션이 이미 터미널에서 실행 중인지 확인. 프로세스 인자(`claude --resume <session-id>`)로 감지 가능. 이미 실행 중이면 경고 표시 또는 기존 터미널로 포커스 이동
+  - 비용: M
+  - 영향도: Mid
+  - 관련 파일: `ClaudeSessionManager/Services/TerminalService.swift`, `ClaudeSessionManager/Views/Session/SessionCardView.swift`
+  - 하위 항목:
+    - [ ] TerminalService에 isSessionRunning(sessionId:) 메서드 추가
+      - 설명: `pgrep -f "claude --resume <sessionId>"` 실행하여 프로세스 존재 여부 반환
+      - 비용: S
+    - [ ] Resume 버튼 클릭 시 실행 여부 확인 및 처리
+      - 설명: 이미 실행 중이면 Alert 표시 ("이미 터미널에서 실행 중입니다") 또는 해당 터미널 창으로 포커스 이동
+      - 비용: S
+
 - [ ] Full 레이아웃 카드에 터미널 열기 버튼 추가
   - 설명: 격자(SessionGridView) 섹션 헤더에는 `TerminalService.openDirectory()` 버튼이 있으나, SessionCardView의 full 레이아웃에는 터미널 열기 버튼 없음. 해당 세션 디렉토리에서 새 터미널을 여는 버튼 추가 필요
   - 비용: XS
@@ -117,6 +130,26 @@
   - 완료일: 2026-01-16
 
 ## 조사/검토
+
+- [x] 터미널 열기 딜레이 개선 방안 조사
+  - 설명: 현재 터미널(iTerm)을 열 때마다 새 창/탭을 AppleScript로 생성하여 딜레이 발생. 딜레이 없이 빠르게 터미널을 열 수 있는 방법 모색 필요
+  - 해결: **기존 창에 탭 추가 방식으로 변경**
+    - 새 창 생성: ~0.9초 → 기존 창에 탭 추가: ~0.1초 (**10배 이상 빠름**)
+    - iTerm2, Terminal.app 모두 동일 패턴 적용
+    - 창이 없을 때만 새 창 생성, 있으면 탭 추가
+  - 비용: M
+  - 영향도: Mid
+  - 관련 파일: `ClaudeSessionManager/Services/TerminalService.swift`
+  - 완료일: 2026-01-16
+  - 조사 대상:
+    - [x] 기존 iTerm 창/탭 재사용 가능 여부
+      - 결론: **채택** - `create tab with default profile` 사용
+    - [x] AppleScript 대신 URL Scheme 사용 가능 여부
+      - 결론: **불가** - 보안 문제로 2011년 제거됨
+    - [x] 백그라운드에서 미리 터미널 세션 준비
+      - 결론: **불필요** - 탭 추가 방식이 충분히 빠름 (0.1초)
+    - [x] Terminal.app 딜레이 비교 테스트
+      - 결론: **동일 패턴 적용** - Terminal.app도 탭 추가 방식으로 개선
 
 - [x] iTerm 세션 호출 방식 개선 검토
   - 설명: `zsh -lc 'command; exec zsh'` 패턴으로 iTerm 세션 시작 가능 여부 확인. 현재 AppleScript 방식 대비 장단점 비교 필요
@@ -176,10 +209,96 @@
 
 ## 버그
 
-- [ ] 권한 요청 툴팁 z-index 문제
+- [x] 권한 요청 툴팁 z-index 문제
   - 설명: 선택지(AskUserQuestion) 권한 요청에서 옵션 hover 시 표시되는 description 툴팁이 하단 요소(Submit 버튼 등) 아래에 렌더링됨. 툴팁이 최상위 레이어에 표시되어야 함
   - 원인: 툴팁 오버레이가 InlineQuestionSelectionView 내부에 있어 부모 레벨의 Submit 버튼보다 zIndex가 낮음
-  - 해결방안: 툴팁 상태를 InlinePermissionRequestView로 올려서 Submit 버튼과 같은 레벨에서 렌더링
+  - 해결: `hoveredTooltip` 상태를 `InlinePermissionRequestView`로 이동하여 Submit 버튼과 같은 레벨에서 렌더링. `InlineQuestionSelectionView`는 `onHoverTooltip` 콜백으로 툴팁 정보만 전달
   - 비용: S
   - 영향도: Mid
   - 관련 파일: `ClaudeSessionManager/Views/Components/PermissionRequestView.swift`
+  - 완료일: 2026-01-16
+
+## 성능 최적화
+
+- [x] ElapsedTimeText 타이머 → TimelineView 교체
+  - 설명: 현재 `Timer.publish(every: 1)` 방식은 세션 카드마다 독립 타이머 생성. 카드 10개면 타이머 10개가 매초 발동하며 백그라운드/화면 밖에서도 계속 실행됨. SwiftUI의 `TimelineView(.periodic)` 사용 시 시스템이 스케줄링 최적화하고 화면 밖이면 자동 중단
+  - 해결: `Timer.publish` + `onReceive` → `TimelineView(.periodic(from: .now, by: 1.0))` 교체
+  - 비용: S
+  - 영향도: High
+  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionCardView.swift:237`
+  - 완료일: 2026-01-16
+
+- [x] PermissionRequest 폴링 타이머 제거
+  - 설명: 현재 1초마다 `loadPendingRequests()` 폴링하여 터미널 권한 응답 감지. 이미 `PostToolUse` 훅에서 `SessionStore.notifySessionsUpdated()` 호출 중이므로 `sessionsDidChangeNotification` 구독으로 대체 가능. 폴링 완전 제거
+  - 해결: `refreshTimer` 제거, `SessionStore.sessionsDidChangeNotification` 구독 추가
+  - 비용: S
+  - 영향도: High
+  - 관련 파일: `ClaudeSessionManager/Views/Components/PermissionRequestView.swift:67-95`
+  - 완료일: 2026-01-16
+
+## UI 기능 개선
+
+- [ ] 권한/선택 요청 영역 컨텍스트 메뉴 추가
+  - 설명: InlinePermissionRequestView(세션 카드 아래 인라인 권한 요청 영역)에서 우클릭 시 기존 SessionContextMenu와 동일한 액션(상태 변경, 이름 변경, 대화 이어하기, 삭제) 제공. 현재는 세션 카드에서만 우클릭 메뉴가 동작하고 권한 요청 영역에서는 동작하지 않음
+  - 비용: S
+  - 영향도: Low
+  - 관련 파일: `ClaudeSessionManager/Views/Components/PermissionRequestView.swift`, `ClaudeSessionManager/Views/Session/SessionGridView.swift`
+
+## UI 일관성
+
+- [x] Unread 상태 표시 개선 (애니메이션 → 정적)
+  - 설명: 현재 isUnseen 상태의 세션 카드에 반짝이는(glowing) 테두리 애니메이션이 적용됨. 시각적으로 산만할 수 있으므로 정적 표시(테두리 색상 변화, 뱃지 등)로 변경
+  - 해결: `isGlowing` 상태 및 repeatForever 애니메이션 제거, 정적인 2px 두께의 상태 색상 테두리로 변경 (full/compact 카드 모두)
+  - 비용: S
+  - 영향도: Low
+  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionCardView.swift`
+  - 완료일: 2026-01-16
+
+- [ ] 권한/선택 요청 버튼 디자인 개선
+  - 설명: 권한 요청과 선택 요청의 버튼 디자인 및 라벨 일관성 문제 해결
+  - 비용: S (하위 합산)
+  - 영향도: Mid
+  - 관련 파일: `ClaudeSessionManager/Views/Components/PermissionRequestView.swift`
+  - 하위 항목:
+    - [ ] 터미널 위임 버튼 라벨 통일
+      - 설명: 현재 권한 요청은 "Ask", 선택 요청은 "터미널에서"/"터미널"로 표시됨. 같은 기능(Claude Code 터미널로 위임)인데 라벨이 달라 혼란스러움. 일관된 라벨로 통일 필요 (예: 모두 "터미널에서" 또는 "Ask in Terminal")
+      - 비용: XS
+    - [ ] ALLOW/DENY/ASK 버튼 스타일 개선
+      - 설명: 버튼 색상, 크기, 아이콘 등 디자인 요소 검토 및 개선. 현재 Allow=초록, Deny=빨강은 직관적이나 Ask 버튼이 시각적으로 약함
+      - 비용: XS
+
+## 알림
+
+- [ ] ~~알림 클릭 시 앱 활성화 기능~~ (구현 안함)
+  - 설명: 훅 발생 시 표시되는 알림을 클릭하면 앱 창으로 이동
+  - 사유: CLI 훅에서 AppleScript `display notification` 사용 중이며, 이 방식은 클릭 이벤트를 지원하지 않음. IPC를 통한 앱 위임 방식은 복잡도 대비 효용이 낮음
+
+## 트랜스크립트 기능
+
+- [x] 실시간 트랜스크립트 반영 가능성 조사
+  - 설명: 현재 Stop 훅(응답 완료)에서만 transcript.jsonl을 아카이빙하여 UI에 반영. 진행 중인 대화도 실시간으로 표시 가능한지 조사 필요
+  - 결론: **실시간 반영 불가능 (현재 방식 유지)**
+    - Claude Code는 transcript.jsonl을 **응답 완료(Stop) 시점에 일괄 기록**함
+    - 테스트: 세션 진행 중(12:39) transcript 파일 수정 시간이 11:35로 고정 → 실시간 기록 없음
+    - stdout 스트리밍은 별도이며, 파일 기록과 분리됨
+    - 대안으로 stdout 파싱 구현 가능하나 복잡도 대비 이점 낮음
+  - 비용: S
+  - 영향도: Mid
+  - 관련 파일: `ClaudeSessionManager/Services/Transcript/TranscriptArchiveService.swift`, `ClaudeSessionManager/Services/HookRunner.swift`
+  - 완료일: 2026-01-16
+
+- [ ] Assistant 응답별 토큰 사용량 표시
+  - 설명: 트랜스크립트에서 각 Assistant 응답에 해당 요청의 토큰 사용량(input/output/cache) 표시. Claude Code transcript.jsonl의 `message.usage` 필드에서 토큰 정보 파싱
+  - 비용: M
+  - 영향도: Mid
+  - 관련 파일: `ClaudeSessionManager/Models/Transcript/TranscriptEntry.swift`, `ClaudeSessionManager/Services/Transcript/TranscriptArchiveService.swift`, `ClaudeSessionManager/Views/Session/TranscriptRowView.swift`
+  - 하위 항목:
+    - [ ] TranscriptEntry에 토큰 사용량 필드 추가
+      - 설명: `TokenUsage` 구조체 정의 (inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens). TranscriptEntry에 옵셔널 `usage: TokenUsage?` 필드 추가
+      - 비용: S
+    - [ ] TranscriptArchiveService에서 usage 필드 파싱
+      - 설명: `buildEntry()` 메서드에서 `message.usage` 객체 파싱. Assistant 메시지에만 존재하므로 조건부 처리
+      - 비용: S
+    - [ ] TranscriptRowView에 토큰 표시 UI 추가
+      - 설명: Assistant 메시지 하단에 토큰 사용량 표시 (예: "↓1.2K ↑350 💾5K"). 접이식 또는 hover로 상세 표시 고려
+      - 비용: S
