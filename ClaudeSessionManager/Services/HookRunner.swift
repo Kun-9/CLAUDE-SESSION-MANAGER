@@ -8,6 +8,29 @@ struct HookEvent: Decodable {
     let session_id: String?
     let prompt: String?
     let transcript_path: String?
+    let tool_input: ToolInput?
+}
+
+// MARK: - Tool Input (AskUserQuestion 등)
+
+struct ToolInput: Codable {
+    let questions: [ToolQuestion]?
+}
+
+struct ToolQuestion: Codable, Identifiable {
+    let header: String?
+    let question: String?
+    let multiSelect: Bool?
+    let options: [ToolOption]?
+
+    var id: String { header ?? UUID().uuidString }
+}
+
+struct ToolOption: Codable, Identifiable {
+    let label: String
+    let description: String?
+
+    var id: String { label }
 }
 
 enum HookRunner {
@@ -103,9 +126,66 @@ enum HookRunner {
     // PermissionRequest 이벤트 처리
     private static func handlePermission(_ event: HookEvent) {
         SessionStore.updateSessionStatus(sessionId: event.session_id, status: .permission)
-        guard SettingsStore.permissionEnabled() else { return }
+
         let toolName = event.tool_name ?? "Unknown"
+
+        // 대화형 권한 요청이 활성화된 경우: 앱에서 사용자 선택을 기다림
+        if SettingsStore.interactivePermissionEnabled() {
+            handleInteractivePermission(event)
+            return
+        }
+
+        // 기존 동작: 알림만 전송 (Claude Code 자체 UI 사용)
+        guard SettingsStore.permissionEnabled() else { return }
         notify(message: "⚠️ 권한 요청: \(toolName)", cwd: event.cwd, sessionId: event.session_id)
+    }
+
+    // 대화형 권한 요청 처리 (앱에서 선택)
+    private static func handleInteractivePermission(_ event: HookEvent) {
+        let toolName = event.tool_name ?? "Unknown"
+
+        // tool_input.questions를 PermissionQuestion으로 변환
+        let questions: [PermissionQuestion]? = event.tool_input?.questions?.map { q in
+            PermissionQuestion(
+                header: q.header,
+                question: q.question,
+                multiSelect: q.multiSelect ?? false,
+                options: q.options?.map { PermissionOption(label: $0.label, description: $0.description) } ?? []
+            )
+        }
+
+        // 1. 요청 정보 저장 (앱이 읽을 수 있도록)
+        let requestId = PermissionRequestStore.savePendingRequest(
+            sessionId: event.session_id,
+            toolName: event.tool_name,
+            cwd: event.cwd,
+            questions: questions
+        )
+
+        // 2. 알림 전송
+        if SettingsStore.permissionEnabled() {
+            let hasQuestions = questions?.isEmpty == false
+            let suffix = hasQuestions ? " (선택지 있음)" : ""
+            notify(message: "⚠️ 권한 요청: \(toolName)\(suffix)", cwd: event.cwd, sessionId: event.session_id)
+        }
+
+        // 3. 앱의 응답을 기다림 (blocking, 무한 대기)
+        if let response = PermissionRequestStore.waitForResponse(requestId: requestId) {
+            // 사용자가 선택함 → hookSpecificOutput 형식으로 응답
+            writePermissionResponse(decision: response.decision, message: response.message, answers: response.answers)
+        } else {
+            // pending 삭제됨 (세션 종료 또는 터미널에서 처리) → Claude Code 자체 UI로 fallback
+            // 세션 상태 업데이트
+            SessionStore.updateSessionStatus(sessionId: event.session_id, status: .running)
+        }
+    }
+
+    // hookSpecificOutput 형식으로 권한 응답 출력
+    private static func writePermissionResponse(decision: PermissionDecision, message: String?, answers: [String: String]? = nil) {
+        guard let data = PermissionRequestStore.formatHookResponse(decision: decision, message: message, answers: answers) else {
+            return
+        }
+        FileHandle.standardOutput.write(data)
     }
 
     private static func handleSessionStart(_ event: HookEvent) {
@@ -142,11 +222,18 @@ enum HookRunner {
             sessionId: event.session_id,
             status: .running
         )
+
+        // 터미널에서 직접 처리된 경우 pending 권한 요청 삭제
+        // (앱에서 응답하지 않았지만 Claude Code가 자체 UI로 처리 완료)
+        PermissionRequestStore.deletePendingRequests(forSessionId: event.session_id)
     }
 
     private static func handleSessionEnd(_ event: HookEvent) {
         let trimmedId = event.session_id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmedId.isEmpty else { return }
+
+        // pending 권한 요청 삭제 (세션 종료 시)
+        PermissionRequestStore.deletePendingRequests(forSessionId: event.session_id)
 
         // 세션 정보 확인
         let sessions = SessionStore.loadSessions()

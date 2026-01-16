@@ -1,6 +1,6 @@
 // MARK: - 파일 설명
 // SettingsSheet: 설정 시트 메인 뷰
-// - Notifications, Claude, Debug 탭으로 구성
+// - Notifications, Terminal, Hooks, Debug 탭으로 구성
 // - ContentView에서 시트로 표시
 
 import SwiftUI
@@ -12,6 +12,7 @@ struct SettingsSheet: View {
     @Binding var draftPreToolUseTools: String
     @Binding var draftStopEnabled: Bool
     @Binding var draftPermissionEnabled: Bool
+    @Binding var draftInteractivePermission: Bool
     @Binding var draftSoundEnabled: Bool
     @Binding var draftSoundName: String
     @Binding var draftSoundVolume: Double
@@ -28,6 +29,8 @@ struct SettingsSheet: View {
     private var storedStopEnabled = true
     @AppStorage(SettingsKeys.permissionEnabled, store: SettingsStore.defaults)
     private var storedPermissionEnabled = true
+    @AppStorage(SettingsKeys.interactivePermission, store: SettingsStore.defaults)
+    private var storedInteractivePermission = false
     @AppStorage(SettingsKeys.soundEnabled, store: SettingsStore.defaults)
     private var storedSoundEnabled = true
     @AppStorage(SettingsKeys.soundName, store: SettingsStore.defaults)
@@ -48,6 +51,7 @@ struct SettingsSheet: View {
             || storedPreToolUseTools != draftPreToolUseTools
             || storedStopEnabled != draftStopEnabled
             || storedPermissionEnabled != draftPermissionEnabled
+            || storedInteractivePermission != draftInteractivePermission
             || storedSoundEnabled != draftSoundEnabled
             || storedSoundName != draftSoundName
             || storedSoundVolume != draftSoundVolume
@@ -146,8 +150,8 @@ struct SettingsSheet: View {
             notificationsView
         case .terminal:
             terminalView
-        case .claude:
-            claudeView
+        case .hooks:
+            hooksView
         case .debug:
             debugView
         }
@@ -211,6 +215,23 @@ struct SettingsSheet: View {
                     }
                     .foregroundStyle(draftNotificationsEnabled ? .primary : .secondary)
                     .disabled(!draftNotificationsEnabled)
+                }
+
+                Divider()
+
+                // 섹션 1.5: 대화형 권한 요청
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        SectionHeaderView(
+                            title: "Interactive Permission",
+                            subtitle: "Handle permission requests in this app instead of Claude Code."
+                        )
+                        Spacer()
+                        Toggle("", isOn: $draftInteractivePermission)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                    }
+
                 }
 
                 Divider()
@@ -305,12 +326,12 @@ struct SettingsSheet: View {
         .simultaneousGesture(TapGesture().onEnded { dismissFocus() })
     }
 
-    // MARK: - Claude View
+    // MARK: - Hooks View
 
-    private var claudeView: some View {
+    private var hooksView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                SectionHeaderView(title: "Claude", subtitle: "Update Claude hooks to call this app.")
+                SectionHeaderView(title: "Hooks", subtitle: "Update Claude hooks to call this app.")
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Hook command")
@@ -357,7 +378,10 @@ struct SettingsSheet: View {
                             if let status = preview.statusMessage {
                                 claudeStatus = status
                             }
-                            showClaudePreview = true
+                            // 상태 업데이트 후 다음 런루프에서 시트 표시 (타이밍 문제 방지)
+                            DispatchQueue.main.async {
+                                showClaudePreview = true
+                            }
                         }
                         .buttonStyle(.bordered)
 
@@ -479,7 +503,7 @@ struct SettingsSheet: View {
 private enum SettingsTab: String, CaseIterable, Identifiable {
     case notifications = "Notifications"
     case terminal = "Terminal"
-    case claude = "Claude"
+    case hooks = "Hooks"
     case debug = "Debug"
 
     var id: String { rawValue }
@@ -490,7 +514,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .notifications: return "bell"
         case .terminal: return "rectangle.on.rectangle"
-        case .claude: return "terminal"
+        case .hooks: return "terminal"
         case .debug: return "ladybug"
         }
     }

@@ -19,6 +19,8 @@ struct ContentView: View {
     private var storedStopEnabled = true
     @AppStorage(SettingsKeys.permissionEnabled, store: SettingsStore.defaults)
     private var storedPermissionEnabled = true
+    @AppStorage(SettingsKeys.interactivePermission, store: SettingsStore.defaults)
+    private var storedInteractivePermission = false
     @AppStorage(SettingsKeys.soundEnabled, store: SettingsStore.defaults)
     private var storedSoundEnabled = true
     @AppStorage(SettingsKeys.soundName, store: SettingsStore.defaults)
@@ -35,6 +37,7 @@ struct ContentView: View {
     @State private var draftPreToolUseTools = "AskUserQuestion"
     @State private var draftStopEnabled = true
     @State private var draftPermissionEnabled = true
+    @State private var draftInteractivePermission = false
     @State private var draftSoundEnabled = true
     @State private var draftSoundName = "Glass"
     @State private var draftSoundVolume = 1.0
@@ -93,6 +96,7 @@ private extension ContentView {
                     draftPreToolUseTools: $draftPreToolUseTools,
                     draftStopEnabled: $draftStopEnabled,
                     draftPermissionEnabled: $draftPermissionEnabled,
+                    draftInteractivePermission: $draftInteractivePermission,
                     draftSoundEnabled: $draftSoundEnabled,
                     draftSoundName: $draftSoundName,
                     draftSoundVolume: $draftSoundVolume,
@@ -175,6 +179,7 @@ private extension ContentView {
         draftPreToolUseTools = storedPreToolUseTools
         draftStopEnabled = storedStopEnabled
         draftPermissionEnabled = storedPermissionEnabled
+        draftInteractivePermission = storedInteractivePermission
         draftSoundEnabled = storedSoundEnabled
         draftSoundName = storedSoundName
         draftSoundVolume = storedSoundVolume
@@ -188,6 +193,7 @@ private extension ContentView {
         storedPreToolUseTools = draftPreToolUseTools
         storedStopEnabled = draftStopEnabled
         storedPermissionEnabled = draftPermissionEnabled
+        storedInteractivePermission = draftInteractivePermission
         storedSoundEnabled = draftSoundEnabled
         storedSoundName = draftSoundName
         storedSoundVolume = draftSoundVolume

@@ -135,6 +135,9 @@ enum ClaudeSettingsService {
         return updated
     }
 
+    /// PermissionRequest 타임아웃 (초) - 2시간
+    static let permissionTimeout: Int = 7200
+
     // 새 hook 섹션 생성 (기존 hook이 있으면 대체)
     private static func hookSection(command: String) -> [String: Any] {
         let hookEntry: [[String: Any]] = [
@@ -144,6 +147,20 @@ enum ClaudeSettingsService {
                     [
                         "type": "command",
                         "command": command,
+                    ],
+                ],
+            ],
+        ]
+
+        // PermissionRequest는 2시간 타임아웃
+        let permissionEntry: [[String: Any]] = [
+            [
+                "matcher": "",
+                "hooks": [
+                    [
+                        "type": "command",
+                        "command": command,
+                        "timeout": permissionTimeout,
                     ],
                 ],
             ],
@@ -164,7 +181,7 @@ enum ClaudeSettingsService {
         return [
             "PreToolUse": hookEntry,
             "Stop": hookEntry,
-            "PermissionRequest": hookEntry,
+            "PermissionRequest": permissionEntry,
             "SessionStart": hookEntry + resumeEntry,
             "SessionEnd": hookEntry,
             "UserPromptSubmit": hookEntry,

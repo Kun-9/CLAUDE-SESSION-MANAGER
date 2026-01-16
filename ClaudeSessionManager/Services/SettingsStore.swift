@@ -8,6 +8,7 @@ enum SettingsKeys {
     static let preToolUseTools = "hook.preToolUse.tools"
     static let stopEnabled = "hook.stop.enabled"
     static let permissionEnabled = "hook.permission.enabled"
+    static let interactivePermission = "hook.permission.interactive"
     static let soundEnabled = "sound.enabled"
     static let soundName = "sound.name"
     static let soundVolume = "sound.volume"
@@ -58,6 +59,7 @@ enum SettingsStore {
                 SettingsKeys.preToolUseTools: "AskUserQuestion",
                 SettingsKeys.stopEnabled: true,
                 SettingsKeys.permissionEnabled: true,
+                SettingsKeys.interactivePermission: false,
                 SettingsKeys.soundEnabled: true,
                 SettingsKeys.soundName: "Glass",
                 SettingsKeys.soundVolume: 1.0,
@@ -113,6 +115,17 @@ enum SettingsStore {
     // PermissionRequest 훅 사용 여부
     static func permissionEnabled() -> Bool {
         defaults.bool(forKey: SettingsKeys.permissionEnabled)
+    }
+
+    // 대화형 권한 요청 사용 여부 (앱에서 선택)
+    static func interactivePermissionEnabled() -> Bool {
+        defaults.bool(forKey: SettingsKeys.interactivePermission)
+    }
+
+    // 대화형 권한 요청 설정
+    static func setInteractivePermission(_ enabled: Bool) {
+        defaults.set(enabled, forKey: SettingsKeys.interactivePermission)
+        defaults.synchronize()
     }
 
     // 사운드 사용 여부
