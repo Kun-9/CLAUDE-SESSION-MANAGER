@@ -17,11 +17,12 @@ struct SessionView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // 컨트롤 영역: 그룹핑 모드 + 필터 + 레이아웃 모드
+                    // 컨트롤 영역: 그룹핑 모드 + 필터 + 레이아웃 모드 + 프로세스 관리
                     HStack(spacing: 12) {
                         SessionListModeToggle(selection: $viewModel.listMode)
                         SessionStatusFilterToggle(selection: $viewModel.statusFilters)
                         Spacer()
+                        ClaudeProcessManagerButton()
                         SessionLayoutToggle(selection: $viewModel.layoutMode)
                     }
 
