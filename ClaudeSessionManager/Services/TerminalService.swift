@@ -171,10 +171,7 @@ enum TerminalService {
     ///   - completion: 사용자가 확인하면 true
     private static func showConfirmation(for action: TerminalAction, completion: @escaping (Bool) -> Void) {
         DispatchQueue.main.async {
-            guard let window = NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible }) else {
-                completion(false)
-                return
-            }
+            let window = NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible }) ?? NSApp.windows.first
 
             let alert = NSAlert()
             alert.messageText = action.title
@@ -184,7 +181,12 @@ enum TerminalService {
             alert.addButton(withTitle: "열기")
             alert.addButton(withTitle: "취소")
 
-            alert.beginSheetModal(for: window) { response in
+            if let window = window {
+                alert.beginSheetModal(for: window) { response in
+                    completion(response == .alertFirstButtonReturn)
+                }
+            } else {
+                let response = alert.runModal()
                 completion(response == .alertFirstButtonReturn)
             }
         }
