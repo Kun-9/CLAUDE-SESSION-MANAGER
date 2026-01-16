@@ -34,10 +34,21 @@ enum MigrationService {
             migrateUserDefaults()
             migrateApplicationSupportFolder()
             markMigrationCompleted()
+            notifySessionsChanged()
         } else {
             // 사용자가 거부해도 다시 묻지 않도록 완료 표시
             markMigrationCompleted()
         }
+    }
+
+    // MARK: - Notification
+
+    /// 세션 목록 변경 알림 발송 (마이그레이션 완료 후 UI 새로고침용)
+    private static func notifySessionsChanged() {
+        DistributedNotificationCenter.default().postNotificationName(
+            SessionStore.sessionsDidChangeNotification,
+            object: nil
+        )
     }
 
     // MARK: - Migration Check
