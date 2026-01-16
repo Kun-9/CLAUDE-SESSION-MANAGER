@@ -56,6 +56,10 @@ enum ClaudeProcessService {
 
     /// 특정 프로세스 종료
     static func killProcess(_ process: ClaudeProcess) -> Bool {
+        // 종료 전 프로세스가 여전히 Claude인지 재확인 (race condition 방지)
+        let verify = runCommand("ps -p \(process.id) -o comm=")
+        guard verify.contains("claude") else { return false }
+
         let result = runCommand("kill -9 \(process.id) 2>/dev/null")
         return result.isEmpty || !result.contains("No such process")
     }
