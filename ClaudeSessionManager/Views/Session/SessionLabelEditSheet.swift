@@ -1,31 +1,35 @@
 // MARK: - 파일 설명
-// SessionLabelEditSheet: 세션 라벨 편집 시트
-// - 사용자가 세션 이름을 수정할 수 있는 간단한 편집 UI
-// - 저장/취소 버튼 제공
+// SessionLabelEditPopover: 세션 라벨 편집 팝오버
+// - 사용자가 세션 이름을 수정할 수 있는 컴팩트한 편집 UI
+// - Enter로 저장, Esc로 취소
 
 import SwiftUI
 
-struct SessionLabelEditSheet: View {
+struct SessionLabelEditPopover: View {
     let session: SessionItem
     let onSave: (String) -> Void
-    @Environment(\.dismiss) private var dismiss
+    let onCancel: () -> Void
+
     @State private var draftLabel: String = ""
     @FocusState private var isFocused: Bool
 
-    init(session: SessionItem, onSave: @escaping (String) -> Void) {
+    init(session: SessionItem, onSave: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
         self.session = session
         self.onSave = onSave
+        self.onCancel = onCancel
         _draftLabel = State(initialValue: session.name)
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("세션 이름 변경")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("이름 변경")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             TextField("세션 이름", text: $draftLabel)
                 .textFieldStyle(.roundedBorder)
                 .focused($isFocused)
+                .frame(width: 220)
                 .onChange(of: draftLabel) { _, newValue in
                     if newValue.count > 50 {
                         draftLabel = String(newValue.prefix(50))
@@ -34,25 +38,26 @@ struct SessionLabelEditSheet: View {
                 .onSubmit {
                     save()
                 }
-
-            HStack {
-                Button("취소") {
-                    dismiss()
+                .onExitCommand {
+                    onCancel()
                 }
-                .keyboardShortcut(.cancelAction)
 
+            HStack(spacing: 8) {
                 Spacer()
 
                 Button("저장") {
                     save()
                 }
-                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
                 .disabled(!hasChanges)
+                .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(20)
-        .frame(width: 300)
-        .onAppear {
+        .padding(12)
+        .task {
+            // Popover 애니메이션 완료 후 포커스 설정
+            try? await Task.sleep(for: .milliseconds(100))
             isFocused = true
         }
     }
@@ -67,10 +72,32 @@ struct SessionLabelEditSheet: View {
     private func save() {
         let trimmed = draftLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != session.name else {
-            dismiss()
+            onCancel()
             return
         }
         onSave(trimmed)
-        dismiss()
+    }
+}
+
+// MARK: - 기존 Sheet 호환용 (deprecated)
+
+struct SessionLabelEditSheet: View {
+    let session: SessionItem
+    let onSave: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        SessionLabelEditPopover(
+            session: session,
+            onSave: { newLabel in
+                onSave(newLabel)
+                dismiss()
+            },
+            onCancel: {
+                dismiss()
+            }
+        )
+        .padding(8)
+        .frame(width: 280)
     }
 }

@@ -11,10 +11,11 @@ struct SessionGridView: View {
     let sessions: [SessionItem]
     let onSelect: (SessionItem) -> Void
     var onDelete: ((SessionItem) -> Void)?
-    var onRename: ((SessionItem) -> Void)?
+    var onRename: ((SessionItem, String) -> Void)?
     var onChangeStatus: ((SessionItem, SessionStatus) -> Void)?
 
     @StateObject private var permissionViewModel = PermissionRequestViewModel()
+    @State private var renamingSession: SessionItem?
 
     /// 적응형 격자 열 정의 (최소 120pt, 최대 160pt)
     private let columns = [
@@ -27,22 +28,24 @@ struct SessionGridView: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            // 권한 요청이 있는 세션들 (인라인 표시)
-            ForEach(permissionViewModel.pendingRequests) { request in
-                if let session = sessions.first(where: { $0.id == request.sessionId }) {
-                    VStack(spacing: 0) {
-                        Button {
-                            if session.isUnseen {
-                                SessionStore.markSessionAsSeen(sessionId: session.id)
-                            }
-                            onSelect(session)
-                        } label: {
-                            SessionCardView(session: session, style: .full)
-                        }
-                        .buttonStyle(.plain)
+        LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(sessions) { session in
+                let request = permissionRequest(for: session)
+                let isRenaming = renamingSession?.id == session.id
 
-                        InlinePermissionRequestView(
+                Button {
+                    if session.isUnseen {
+                        SessionStore.markSessionAsSeen(sessionId: session.id)
+                    }
+                    onSelect(session)
+                } label: {
+                    SessionCardView(session: session, style: .compact)
+                }
+                .buttonStyle(.plain)
+                // 권한 요청이 있고 permission 상태일 때만 오버레이 표시
+                .overlay(alignment: .bottom) {
+                    if let request = request, session.status == .permission {
+                        GridPermissionOverlay(
                             request: request,
                             onAllow: { answers in permissionViewModel.allow(request: request, answers: answers) },
                             onDeny: { permissionViewModel.deny(request: request) },
@@ -50,31 +53,41 @@ struct SessionGridView: View {
                         )
                     }
                 }
-            }
-
-            // 나머지 세션들 (격자)
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(sessions.filter { session in
-                    !permissionViewModel.pendingRequests.contains { $0.sessionId == session.id }
-                }) { session in
-                    Button {
-                        if session.isUnseen {
-                            SessionStore.markSessionAsSeen(sessionId: session.id)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                // 권한/선택 요청이 있고 permission 상태일 때 테두리 강조
+                .overlay {
+                    if request != nil && session.status == .permission {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.orange, lineWidth: 1.5)
+                    }
+                }
+                .commandHoverResume(session: session, cornerRadius: 10)
+                .contextMenu {
+                    SessionContextMenu(
+                        session: session,
+                        onChangeStatus: onChangeStatus,
+                        onRename: { renamingSession = $0 },
+                        onDelete: onDelete
+                    )
+                }
+                .background {
+                    // popover를 레이아웃에 영향 없이 표시
+                    Color.clear
+                        .popover(isPresented: .init(
+                            get: { isRenaming },
+                            set: { if !$0 { renamingSession = nil } }
+                        ), arrowEdge: .top) {
+                            SessionLabelEditPopover(
+                                session: session,
+                                onSave: { newLabel in
+                                    onRename?(session, newLabel)
+                                    renamingSession = nil
+                                },
+                                onCancel: {
+                                    renamingSession = nil
+                                }
+                            )
                         }
-                        onSelect(session)
-                    } label: {
-                        SessionCardView(session: session, style: .compact)
-                    }
-                    .buttonStyle(.plain)
-                    .commandHoverResume(session: session, cornerRadius: 10)
-                    .contextMenu {
-                        SessionContextMenu(
-                            session: session,
-                            onChangeStatus: onChangeStatus,
-                            onRename: onRename,
-                            onDelete: onDelete
-                        )
-                    }
                 }
             }
         }
@@ -89,10 +102,11 @@ struct SessionSectionGridView: View {
     var onToggleFavorite: ((String) -> Void)?
     let onSelectSession: (SessionItem) -> Void
     var onDeleteSession: ((SessionItem) -> Void)?
-    var onRenameSession: ((SessionItem) -> Void)?
+    var onRenameSession: ((SessionItem, String) -> Void)?
     var onChangeStatus: ((SessionItem, SessionStatus) -> Void)?
 
     @StateObject private var permissionViewModel = PermissionRequestViewModel()
+    @State private var renamingSession: SessionItem?
 
     private let columns = [
         GridItem(.adaptive(minimum: 120, maximum: 160), spacing: 10)
@@ -105,31 +119,6 @@ struct SessionSectionGridView: View {
 
     var body: some View {
         LazyVStack(spacing: 16) {
-            // 권한 요청이 있는 세션들을 상단에 표시
-            ForEach(permissionViewModel.pendingRequests) { request in
-                let allSessions = sections.flatMap { $0.sessions }
-                if let session = allSessions.first(where: { $0.id == request.sessionId }) {
-                    VStack(spacing: 0) {
-                        Button {
-                            if session.isUnseen {
-                                SessionStore.markSessionAsSeen(sessionId: session.id)
-                            }
-                            onSelectSession(session)
-                        } label: {
-                            SessionCardView(session: session, style: .full)
-                        }
-                        .buttonStyle(.plain)
-
-                        InlinePermissionRequestView(
-                            request: request,
-                            onAllow: { answers in permissionViewModel.allow(request: request, answers: answers) },
-                            onDeny: { permissionViewModel.deny(request: request) },
-                            onAsk: { permissionViewModel.askClaudeCode(request: request) }
-                        )
-                    }
-                }
-            }
-
             ForEach(sections) { section in
                 VStack(alignment: .leading, spacing: 10) {
                     // 섹션 헤더 (접기/펼치기)
@@ -158,10 +147,11 @@ struct SessionSectionGridView: View {
                             // 새 세션 추가 카드
                             NewSessionCard(location: section.sessions.first?.location)
 
-                            // 권한 요청이 없는 세션만 그리드에 표시
-                            ForEach(section.sessions.filter { session in
-                                !permissionViewModel.pendingRequests.contains { $0.sessionId == session.id }
-                            }) { session in
+                            // 모든 세션 표시 (권한 요청 있으면 오버레이 추가)
+                            ForEach(section.sessions) { session in
+                                let request = permissionRequest(for: session)
+                                let isRenaming = renamingSession?.id == session.id
+
                                 Button {
                                     if session.isUnseen {
                                         SessionStore.markSessionAsSeen(sessionId: session.id)
@@ -171,14 +161,52 @@ struct SessionSectionGridView: View {
                                     SessionCardView(session: session, style: .compact)
                                 }
                                 .buttonStyle(.plain)
+                                // 권한 요청이 있고 permission 상태일 때만 오버레이 표시
+                                .overlay(alignment: .bottom) {
+                                    if let request = request, session.status == .permission {
+                                        GridPermissionOverlay(
+                                            request: request,
+                                            onAllow: { answers in permissionViewModel.allow(request: request, answers: answers) },
+                                            onDeny: { permissionViewModel.deny(request: request) },
+                                            onAsk: { permissionViewModel.askClaudeCode(request: request) }
+                                        )
+                                    }
+                                }
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                // 권한/선택 요청이 있고 permission 상태일 때 테두리 강조
+                                .overlay {
+                                    if request != nil && session.status == .permission {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .strokeBorder(Color.orange, lineWidth: 1.5)
+                                    }
+                                }
                                 .commandHoverResume(session: session, cornerRadius: 10)
                                 .contextMenu {
                                     SessionContextMenu(
                                         session: session,
                                         onChangeStatus: onChangeStatus,
-                                        onRename: onRenameSession,
+                                        onRename: { renamingSession = $0 },
                                         onDelete: onDeleteSession
                                     )
+                                }
+                                .background {
+                                    // popover를 레이아웃에 영향 없이 표시
+                                    Color.clear
+                                        .popover(isPresented: .init(
+                                            get: { isRenaming },
+                                            set: { if !$0 { renamingSession = nil } }
+                                        ), arrowEdge: .top) {
+                                            SessionLabelEditPopover(
+                                                session: session,
+                                                onSave: { newLabel in
+                                                    onRenameSession?(session, newLabel)
+                                                    renamingSession = nil
+                                                },
+                                                onCancel: {
+                                                    renamingSession = nil
+                                                }
+                                            )
+                                        }
                                 }
                             }
                         }
