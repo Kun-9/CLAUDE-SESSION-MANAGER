@@ -16,9 +16,10 @@ final class SessionArchiveViewModel: ObservableObject {
     @Published private(set) var archiveSizeText: String?
     @Published private(set) var currentSession: SessionItem?
 
-    /// 현재 세션이 실행 중인지 여부
+    /// 현재 세션이 진행 중인지 여부 (running 또는 permission 대기)
     var isRunning: Bool {
-        currentSession?.status == .running
+        guard let status = currentSession?.status else { return false }
+        return status == .running || status == .permission
     }
 
     /// 실시간 질문을 TranscriptEntry 형태로 반환 (running 상태일 때만)
