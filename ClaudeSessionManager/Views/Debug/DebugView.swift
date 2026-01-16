@@ -89,12 +89,26 @@ struct DebugView: View {
                 metaRow(label: "Prompt", value: prompt)
             }
 
-            Button {
-                togglePayload(entry.id)
-            } label: {
-                payloadHeader(for: entry)
+            HStack {
+                Button {
+                    togglePayload(entry.id)
+                } label: {
+                    payloadHeader(for: entry)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button {
+                    ClipboardService.copy(entry.rawPayload)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Payload 복사")
             }
-            .buttonStyle(.plain)
 
             if expandedPayloadIds.contains(entry.id) {
                 Text(JSONFormattingService.highlighted(entry.rawPayload))
