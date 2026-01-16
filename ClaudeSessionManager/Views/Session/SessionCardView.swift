@@ -17,7 +17,6 @@ struct SessionCardView: View {
     let session: SessionItem
     let style: SessionCardStyle
     @State private var cardWidth: CGFloat = 0
-    @State private var isGlowing = false
 
     /// 기본 생성자 (기존 코드 호환성)
     init(session: SessionItem, style: SessionCardStyle = .full) {
@@ -100,27 +99,11 @@ struct SessionCardView: View {
             }
         }
         .overlay {
-            // 미확인 완료 세션: 반짝이는 테두리
+            // 미확인 완료 세션: 강조 테두리 (정적)
             if session.isUnseen {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(
-                        session.status.tint,
-                        lineWidth: isGlowing ? 2 : 1
-                    )
-                    .opacity(isGlowing ? 1.0 : 0.3)
-                    .animation(
-                        .easeInOut(duration: 1.2).repeatForever(autoreverses: true),
-                        value: isGlowing
-                    )
+                    .strokeBorder(session.status.tint, lineWidth: 2)
             }
-        }
-        .onAppear {
-            if session.isUnseen {
-                isGlowing = true
-            }
-        }
-        .onChange(of: session.isUnseen) { _, newValue in
-            isGlowing = newValue
         }
         .id(session.id)
         .hoverCardStyle(cornerRadius: 18)
@@ -195,18 +178,10 @@ struct SessionCardView: View {
                 .fill(session.status.background)
         }
         .overlay {
-            // 미확인 완료 세션: 반짝이는 테두리
+            // 미확인 완료 세션: 강조 테두리 (정적)
             if session.isUnseen {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(
-                        session.status.tint,
-                        lineWidth: isGlowing ? 2 : 1
-                    )
-                    .opacity(isGlowing ? 1.0 : 0.3)
-                    .animation(
-                        .easeInOut(duration: 1.2).repeatForever(autoreverses: true),
-                        value: isGlowing
-                    )
+                    .strokeBorder(session.status.tint, lineWidth: 2)
             }
             // 일반 테두리
             else {
@@ -215,37 +190,24 @@ struct SessionCardView: View {
             }
         }
         .hoverCardStyle(cornerRadius: 10)
-        .onAppear {
-            if session.isUnseen {
-                isGlowing = true
-            }
-        }
-        .onChange(of: session.isUnseen) { _, newValue in
-            isGlowing = newValue
-        }
         .id(session.id)
     }
 }
 
 // MARK: - 경과 시간 텍스트 (실시간 업데이트)
+// TimelineView 사용: 화면 밖이면 자동 중단, 시스템 스케줄링 최적화
 
 private struct ElapsedTimeText: View {
     let startedAt: TimeInterval
     let baseDuration: TimeInterval  // 일시정지 동안 누적된 시간
-    @State private var elapsed: TimeInterval = 0
-
-    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        Text(formatElapsed(elapsed))
-            .font(.system(size: 10, weight: .medium).monospacedDigit())
-            .foregroundStyle(.secondary)
-            .onAppear {
-                elapsed = baseDuration + (Date().timeIntervalSince1970 - startedAt)
-            }
-            .onReceive(timer) { _ in
-                elapsed = baseDuration + (Date().timeIntervalSince1970 - startedAt)
-            }
+        TimelineView(.periodic(from: .now, by: 1.0)) { context in
+            let elapsed = baseDuration + (context.date.timeIntervalSince1970 - startedAt)
+            Text(formatElapsed(elapsed))
+                .font(.system(size: 10, weight: .medium).monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func formatElapsed(_ seconds: TimeInterval) -> String {
