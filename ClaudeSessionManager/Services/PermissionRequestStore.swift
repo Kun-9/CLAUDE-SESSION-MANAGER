@@ -40,20 +40,61 @@ struct PermissionRequest: Codable, Identifiable {
 
 /// 권한 요청 내 질문 (AskUserQuestion 등)
 struct PermissionQuestion: Codable, Identifiable {
+    let id: String  // 안정적인 식별자 (computed property 사용 시 SwiftUI 크래시 발생)
     let header: String?
     let question: String?
     let multiSelect: Bool
     let options: [PermissionOption]
 
-    var id: String { header ?? UUID().uuidString }
+    /// Decodable 구현: id가 없으면 자동 생성
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        self.header = try container.decodeIfPresent(String.self, forKey: .header)
+        self.question = try container.decodeIfPresent(String.self, forKey: .question)
+        self.multiSelect = try container.decode(Bool.self, forKey: .multiSelect)
+        self.options = try container.decode([PermissionOption].self, forKey: .options)
+    }
+
+    /// 수동 생성용 이니셜라이저
+    init(id: String = UUID().uuidString, header: String?, question: String?, multiSelect: Bool, options: [PermissionOption]) {
+        self.id = id
+        self.header = header
+        self.question = question
+        self.multiSelect = multiSelect
+        self.options = options
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, header, question, multiSelect, options
+    }
 }
 
 /// 질문 선택지
 struct PermissionOption: Codable, Identifiable {
+    let id: String  // 안정적인 식별자
     let label: String
     let description: String?
 
-    var id: String { label }
+    /// Decodable 구현: id가 없으면 label 사용
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let label = try container.decode(String.self, forKey: .label)
+        self.id = try container.decodeIfPresent(String.self, forKey: .id) ?? label
+        self.label = label
+        self.description = try container.decodeIfPresent(String.self, forKey: .description)
+    }
+
+    /// 수동 생성용 이니셜라이저
+    init(id: String? = nil, label: String, description: String?) {
+        self.id = id ?? label
+        self.label = label
+        self.description = description
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, label, description
+    }
 }
 
 /// 권한 응답 결정
