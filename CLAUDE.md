@@ -216,6 +216,21 @@ TYPE: 간단한 설명 (한글)
 
 **주의**: UI 관련 서비스는 `ClaudeSessionManager` 타겟에만 포함. `ClaudeSessionManager-hook`에서 UI 타입 참조 시 빌드 오류 발생.
 
+## 빌드 및 실행
+
+### 빌드 명령
+```bash
+xcodebuild -project ClaudeSessionManager.xcodeproj -scheme ClaudeSessionManager -configuration Debug build
+```
+
+### 빌드 + 재실행 한번에
+빌드 성공 시 기존 앱을 종료하고 새로 빌드된 앱을 자동 실행:
+```bash
+xcodebuild -project ClaudeSessionManager.xcodeproj -scheme ClaudeSessionManager -configuration Debug build && \
+  pkill -9 ClaudeSessionManager 2>/dev/null; sleep 0.3; \
+  open "$(xcodebuild -project ClaudeSessionManager.xcodeproj -scheme ClaudeSessionManager -showBuildSettings 2>/dev/null | awk '/BUILT_PRODUCTS_DIR/ {print $3; exit}')/ClaudeSessionManager.app"
+```
+
 ## AI 협업 규칙 (Claude Code + Codex CLI)
 
 이 프로젝트는 Claude Code와 Codex CLI(OpenAI)가 협업하여 개발합니다.

@@ -17,11 +17,12 @@ struct SessionView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // 컨트롤 영역: 그룹핑 모드 + 필터 + 레이아웃 모드
+                    // 컨트롤 영역: 그룹핑 모드 + 필터 + 레이아웃 모드 + 프로세스 관리
                     HStack(spacing: 12) {
                         SessionListModeToggle(selection: $viewModel.listMode)
                         SessionStatusFilterToggle(selection: $viewModel.statusFilters)
                         Spacer()
+                        ClaudeProcessManagerButton()
                         SessionLayoutToggle(selection: $viewModel.layoutMode)
                     }
 
@@ -44,11 +45,6 @@ struct SessionView: View {
             }
         } message: { session in
             Text("'\(session.name)' 세션을 삭제하시겠습니까?\n아카이브된 대화 기록도 함께 삭제됩니다.")
-        }
-        .sheet(item: $sessionToRename) { session in
-            SessionLabelEditSheet(session: session) { newLabel in
-                viewModel.renameSession(session, to: newLabel)
-            }
         }
     }
 
@@ -87,7 +83,9 @@ struct SessionView: View {
             sessions: viewModel.filteredSessions,
             onSelect: { selectedSession = $0 },
             onDelete: { sessionToDelete = $0 },
-            onRename: { sessionToRename = $0 },
+            onRename: { session, newLabel in
+                viewModel.renameSession(session, to: newLabel)
+            },
             onChangeStatus: { session, status in
                 viewModel.changeSessionStatus(session, to: status)
             }
@@ -134,7 +132,9 @@ struct SessionView: View {
             onToggleFavorite: { viewModel.toggleFavorite($0) },
             onSelectSession: { selectedSession = $0 },
             onDeleteSession: { sessionToDelete = $0 },
-            onRenameSession: { sessionToRename = $0 },
+            onRenameSession: { session, newLabel in
+                viewModel.renameSession(session, to: newLabel)
+            },
             onChangeStatus: { session, status in
                 viewModel.changeSessionStatus(session, to: status)
             }
@@ -149,6 +149,7 @@ struct SessionView: View {
     @ViewBuilder
     private func sessionButton(for session: SessionItem) -> some View {
         let request = permissionRequest(for: session)
+        let isRenaming = sessionToRename?.id == session.id
 
         VStack(spacing: 0) {
             // 세션 카드
@@ -181,6 +182,25 @@ struct SessionView: View {
             }
         }
         .animation(.spring(response: 0.3), value: request?.id)
+        .background {
+            // popover를 레이아웃에 영향 없이 표시
+            Color.clear
+                .popover(isPresented: .init(
+                    get: { isRenaming },
+                    set: { if !$0 { sessionToRename = nil } }
+                ), arrowEdge: .top) {
+                    SessionLabelEditPopover(
+                        session: session,
+                        onSave: { newLabel in
+                            viewModel.renameSession(session, to: newLabel)
+                            sessionToRename = nil
+                        },
+                        onCancel: {
+                            sessionToRename = nil
+                        }
+                    )
+                }
+        }
     }
 
     @ViewBuilder
