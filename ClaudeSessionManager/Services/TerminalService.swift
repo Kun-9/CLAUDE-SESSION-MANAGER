@@ -4,8 +4,43 @@
 // - 설정에서 선택한 터미널로 명령 실행
 // - 세션 이어하기, 새 세션 시작, 디렉토리 열기
 // - 자동화 권한 확인 및 요청
+// - 터미널 열기 전 사용자 확인
 
 import AppKit
+
+/// 터미널 작업 유형
+enum TerminalAction {
+    case resumeSession(sessionId: String)
+    case newSession
+    case openDirectory(path: String)
+
+    var title: String {
+        switch self {
+        case .resumeSession:
+            return "세션 이어하기"
+        case .newSession:
+            return "새 세션 시작"
+        case .openDirectory:
+            return "디렉토리 열기"
+        }
+    }
+
+    var message: String {
+        let terminalName = SettingsStore.terminalApp().displayName
+        switch self {
+        case .resumeSession(let sessionId):
+            // sessionId의 앞 8자리만 표시
+            let shortId = String(sessionId.prefix(8))
+            return "\(terminalName)에서 세션(\(shortId)...)을 이어서 진행합니다."
+        case .newSession:
+            return "\(terminalName)에서 새 Claude 세션을 시작합니다."
+        case .openDirectory(let path):
+            // 경로의 마지막 컴포넌트만 표시
+            let dirName = (path as NSString).lastPathComponent
+            return "\(terminalName)에서 '\(dirName)' 디렉토리를 엽니다."
+        }
+    }
+}
 
 enum TerminalService {
     // MARK: - Permission Check
@@ -88,29 +123,71 @@ enum TerminalService {
 
     // MARK: - Public Methods
 
-    /// 세션 이어하기 - 새 창에서 claude --resume 실행
+    /// 세션 이어하기 - 확인 후 터미널에서 claude --resume 실행
     static func resumeSession(sessionId: String, location: String?) {
-        let safeSessionId = escapeForShellSingleQuote(sessionId)
-        let cdCommand = location.map { "cd '\(escapeForShellSingleQuote($0))' && " } ?? ""
-        let resumeCommand = "\(cdCommand)claude --resume '\(safeSessionId)'"
+        let action = TerminalAction.resumeSession(sessionId: sessionId)
+        showConfirmation(for: action) { confirmed in
+            guard confirmed else { return }
 
-        executeInNewWindow(command: resumeCommand)
+            let safeSessionId = escapeForShellSingleQuote(sessionId)
+            let cdCommand = location.map { "cd '\(escapeForShellSingleQuote($0))' && " } ?? ""
+            let resumeCommand = "\(cdCommand)claude --resume '\(safeSessionId)'"
+
+            executeInNewWindow(command: resumeCommand)
+        }
     }
 
-    /// 새 세션 시작 - 새 창에서 claude 실행
+    /// 새 세션 시작 - 확인 후 터미널에서 claude 실행
     static func startNewSession(location: String?) {
-        let cdCommand = location.map { "cd '\(escapeForShellSingleQuote($0))' && " } ?? ""
-        let command = "\(cdCommand)claude"
+        let action = TerminalAction.newSession
+        showConfirmation(for: action) { confirmed in
+            guard confirmed else { return }
 
-        executeInNewWindow(command: command)
+            let cdCommand = location.map { "cd '\(escapeForShellSingleQuote($0))' && " } ?? ""
+            let command = "\(cdCommand)claude"
+
+            executeInNewWindow(command: command)
+        }
     }
 
-    /// 디렉토리 열기 - 새 창에서 해당 디렉토리로 이동
+    /// 디렉토리 열기 - 확인 후 터미널에서 해당 디렉토리로 이동
     static func openDirectory(location: String?) {
         guard let location else { return }
 
-        let command = "cd '\(escapeForShellSingleQuote(location))'"
-        executeInNewWindow(command: command)
+        let action = TerminalAction.openDirectory(path: location)
+        showConfirmation(for: action) { confirmed in
+            guard confirmed else { return }
+
+            let command = "cd '\(escapeForShellSingleQuote(location))'"
+            executeInNewWindow(command: command)
+        }
+    }
+
+    // MARK: - Confirmation
+
+    /// 터미널 작업 전 사용자 확인 (비동기)
+    /// - Parameters:
+    ///   - action: 수행할 터미널 작업
+    ///   - completion: 사용자가 확인하면 true
+    private static func showConfirmation(for action: TerminalAction, completion: @escaping (Bool) -> Void) {
+        DispatchQueue.main.async {
+            guard let window = NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible }) else {
+                completion(false)
+                return
+            }
+
+            let alert = NSAlert()
+            alert.messageText = action.title
+            alert.informativeText = action.message
+            alert.alertStyle = .informational
+
+            alert.addButton(withTitle: "열기")
+            alert.addButton(withTitle: "취소")
+
+            alert.beginSheetModal(for: window) { response in
+                completion(response == .alertFirstButtonReturn)
+            }
+        }
     }
 
     // MARK: - Private Helpers
@@ -127,16 +204,27 @@ enum TerminalService {
         }
     }
 
-    /// iTerm2에서 새 창으로 명령어 실행
+    /// iTerm2에서 명령어 실행
+    /// - 기존 창이 있으면 새 탭 추가 (빠름: ~0.1초)
+    /// - 기존 창이 없으면 새 창 생성 (느림: ~1초)
     private static func executeInITerm(command: String) {
         let safeCommand = escapeForAppleScript(command)
 
         let script = """
         tell application "iTerm2"
-            create window with default profile
-            tell current session of current window
-                write text "\(safeCommand)"
-            end tell
+            if (count of windows) > 0 then
+                tell current window
+                    create tab with default profile
+                    tell current session
+                        write text "\(safeCommand)"
+                    end tell
+                end tell
+            else
+                create window with default profile
+                tell current session of current window
+                    write text "\(safeCommand)"
+                end tell
+            end if
             activate
         end tell
         """
@@ -144,13 +232,21 @@ enum TerminalService {
         executeAppleScript(script)
     }
 
-    /// Terminal.app에서 새 창으로 명령어 실행
+    /// Terminal.app에서 명령어 실행
+    /// - 기존 창이 있으면 새 탭 추가 (빠름)
+    /// - 기존 창이 없으면 새 창 생성
     private static func executeInTerminal(command: String) {
         let safeCommand = escapeForAppleScript(command)
 
         let script = """
         tell application "Terminal"
-            do script "\(safeCommand)"
+            if (count of windows) > 0 then
+                tell front window
+                    set newTab to do script "\(safeCommand)"
+                end tell
+            else
+                do script "\(safeCommand)"
+            end if
             activate
         end tell
         """
