@@ -82,24 +82,17 @@
 
 ## UI 기능
 
-- [ ] 이미 실행 중인 세션 감지 기능
-  - 설명: Resume 버튼 클릭 시 해당 Claude 세션이 이미 터미널에서 실행 중인지 확인. 프로세스 인자(`claude --resume <session-id>`)로 감지 가능. 이미 실행 중이면 경고 표시 또는 기존 터미널로 포커스 이동
-  - 비용: M
-  - 영향도: Mid
-  - 관련 파일: `ClaudeSessionManager/Services/TerminalService.swift`, `ClaudeSessionManager/Views/Session/SessionCardView.swift`
-  - 하위 항목:
-    - [ ] TerminalService에 isSessionRunning(sessionId:) 메서드 추가
-      - 설명: `pgrep -f "claude --resume <sessionId>"` 실행하여 프로세스 존재 여부 반환
-      - 비용: S
-    - [ ] Resume 버튼 클릭 시 실행 여부 확인 및 처리
-      - 설명: 이미 실행 중이면 Alert 표시 ("이미 터미널에서 실행 중입니다") 또는 해당 터미널 창으로 포커스 이동
-      - 비용: S
+- [ ] ~~이미 실행 중인 세션 감지 기능~~ (구현 불가)
+  - 설명: Resume 버튼 클릭 시 해당 Claude 세션이 이미 터미널에서 실행 중인지 확인
+  - 사유: Claude CLI가 `--resume` 인자를 프로세스 명령줄에 노출하지 않음. 세션 ID가 환경 변수로도 노출되지 않아 특정 세션의 실행 여부를 외부에서 확인할 방법이 없음
 
-- [ ] Full 레이아웃 카드에 터미널 열기 버튼 추가
-  - 설명: 격자(SessionGridView) 섹션 헤더에는 `TerminalService.openDirectory()` 버튼이 있으나, SessionCardView의 full 레이아웃에는 터미널 열기 버튼 없음. 해당 세션 디렉토리에서 새 터미널을 여는 버튼 추가 필요
+- [x] Full 레이아웃(리스트 뷰) 섹션 헤더에 터미널 열기 버튼 추가
+  - 설명: 격자(SessionGridView) 섹션 헤더에는 `TerminalService.openDirectory()` 버튼이 있으나, 리스트 뷰(sectionListView)의 섹션 헤더에는 터미널 열기 버튼 없음
+  - 해결: sectionListView의 SessionSectionHeader에 `onTerminalTap` 파라미터 추가, 그리드 뷰와 동일하게 디렉토리 이름 옆에 터미널 버튼 표시
   - 비용: XS
   - 영향도: Low
-  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionCardView.swift`
+  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionView.swift:103-115`
+  - 완료일: 2026-01-17
 
 - [x] 즐겨찾기 섹션 기능
   - 설명: 디렉토리 섹션을 즐겨찾기로 지정 가능. 섹션 헤더 왼쪽에 별(★) 아이콘으로 표시/토글. 즐겨찾기 섹션은 세션이 없어도 '새 세션' 버튼과 함께 항상 표시됨
@@ -201,11 +194,13 @@
 
 ## Debug 기능
 
-- [ ] Debug 패널 payload 복사 버튼 추가
+- [x] Debug 패널 payload 복사 버튼 추가
   - 설명: Payload 헤더 영역에 복사 버튼 추가. 클릭 시 `rawPayload`(JSON 문자열)를 클립보드에 복사. 기존 `ClipboardService.copy()` 활용
+  - 해결: Payload 헤더 옆에 `doc.on.doc` 아이콘 버튼 추가, `ClipboardService.copy(entry.rawPayload)` 호출
   - 비용: XS
   - 영향도: Low
   - 관련 파일: `ClaudeSessionManager/Views/Debug/DebugView.swift`
+  - 완료일: 2026-01-17
 
 ## 버그
 
