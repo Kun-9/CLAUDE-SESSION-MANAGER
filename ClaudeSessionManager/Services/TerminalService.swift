@@ -207,27 +207,40 @@ enum TerminalService {
     }
 
     /// iTerm2에서 명령어 실행
-    /// - 기존 창이 있으면 새 탭 추가 (빠름: ~0.1초)
-    /// - 기존 창이 없으면 새 창 생성 (느림: ~1초)
+    /// - iTerm2가 실행 중이면 새 탭 추가
+    /// - iTerm2가 실행 중이 아니면 시작 후 기본 창 사용 (추가 창 생성 안함)
     private static func executeInITerm(command: String) {
         let safeCommand = escapeForAppleScript(command)
 
+        // iTerm2가 실행 중인지 먼저 확인 (tell 전에 확인해야 앱이 시작되기 전 상태를 알 수 있음)
         let script = """
+        set wasRunning to application "iTerm2" is running
         tell application "iTerm2"
-            if (count of windows) > 0 then
-                tell current window
-                    create tab with default profile
-                    tell current session
+            activate
+            if wasRunning then
+                -- 이미 실행 중이면 새 탭 추가
+                if (count of windows) > 0 then
+                    tell current window
+                        create tab with default profile
+                        tell current session
+                            write text "\(safeCommand)"
+                        end tell
+                    end tell
+                else
+                    create window with default profile
+                    tell current session of current window
                         write text "\(safeCommand)"
                     end tell
-                end tell
+                end if
             else
-                create window with default profile
+                -- 방금 시작됨: 기본 창이 생성될 때까지 대기 후 사용
+                repeat while (count of windows) is 0
+                    delay 0.1
+                end repeat
                 tell current session of current window
                     write text "\(safeCommand)"
                 end tell
             end if
-            activate
         end tell
         """
 
