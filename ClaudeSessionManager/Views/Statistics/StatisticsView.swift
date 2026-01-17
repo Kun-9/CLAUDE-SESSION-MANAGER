@@ -33,38 +33,43 @@ struct StatisticsView: View {
 
             HStack(spacing: 24) {
                 StatCard(
-                    title: "총 토큰",
-                    value: viewModel.totalStats.formattedTotal,
-                    icon: "sum",
-                    color: .blue
-                )
-
-                StatCard(
                     title: "입력",
-                    value: viewModel.totalStats.formattedInput,
+                    value: viewModel.totalStats.formattedTotalInput,
                     icon: "arrow.down.circle",
-                    color: .green
+                    color: .green,
+                    description: "Claude에게 전송한 총 입력 토큰 수입니다. 시스템 프롬프트, 대화 히스토리, 파일 내용, 캐시 토큰이 포함됩니다.\n입력 = Input + CacheWrite + CacheRead"
                 )
 
                 StatCard(
                     title: "출력",
                     value: viewModel.totalStats.formattedOutput,
                     icon: "arrow.up.circle",
-                    color: .orange
+                    color: .orange,
+                    description: "Claude가 생성한 응답의 토큰 수입니다. 코드, 설명, 도구 호출 등이 포함됩니다."
                 )
 
                 StatCard(
-                    title: "캐시 효율",
-                    value: viewModel.totalStats.formattedCacheHitRate,
+                    title: "실제 사용량",
+                    value: viewModel.totalStats.formattedActualUsage,
+                    icon: "sum",
+                    color: .blue,
+                    description: "비용 기준으로 계산한 실제 토큰 사용량입니다. Cache Write는 1.25배, Cache Read는 0.1배로 환산됩니다.\n실제 사용량 = Input×1 + CacheW×1.25 + CacheR×0.1 + Output"
+                )
+
+                StatCard(
+                    title: "캐시 히트율",
+                    value: viewModel.totalStats.formattedCacheSavingsRate,
                     icon: "memorychip",
-                    color: .purple
+                    color: .purple,
+                    description: "캐시로 인한 비용 절감률입니다. Cache Write는 1.25배, Cache Read는 0.1배 비용으로 계산합니다.\n절감률 = (기본비용 - 실제비용) / 기본비용 × 100"
                 )
             }
 
             HStack(spacing: 16) {
                 Label("\(viewModel.totalStats.totalSessions) 세션", systemImage: "list.bullet.rectangle")
                 Label("\(viewModel.totalStats.totalProjects) 프로젝트", systemImage: "folder")
-                Label("캐시 \(viewModel.totalStats.formattedCacheRead)", systemImage: "bolt.circle")
+                Label("캐시W \(viewModel.totalStats.formattedCacheCreation)", systemImage: "square.and.arrow.down")
+                Label("캐시R \(viewModel.totalStats.formattedCacheRead)", systemImage: "bolt.circle")
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -124,6 +129,9 @@ private struct StatCard: View {
     let value: String
     let icon: String
     let color: Color
+    let description: String
+
+    @State private var showingInfo = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -134,6 +142,20 @@ private struct StatCard: View {
                 Text(title)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button {
+                    showingInfo.toggle()
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showingInfo, arrowEdge: .top) {
+                    StatCardInfoPopover(description: description, color: color)
+                }
             }
 
             Text(value)
@@ -149,10 +171,158 @@ private struct StatCard: View {
     }
 }
 
+// MARK: - Stat Card Info Popover
+
+/// 공식 너비 측정용 PreferenceKey
+private struct FormulaWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 200
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// StatCard info 버튼 클릭 시 표시되는 팝오버
+/// 공식이 포함된 경우 하이라이팅 처리
+private struct StatCardInfoPopover: View {
+    let description: String
+    let color: Color
+
+    @State private var formulaWidth: CGFloat = 200
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // 공식 (한 줄로 표시, 너비 기준)
+            if !formulaLines.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(formulaLines, id: \.self) { line in
+                        Text(line)
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(color)
+                            .fixedSize()
+                            .background(
+                                GeometryReader { geo in
+                                    Color.clear.preference(key: FormulaWidthKey.self, value: geo.size.width)
+                                }
+                            )
+                    }
+                }
+            }
+
+            // 설명 텍스트 (공식 너비에 맞춰 wrap)
+            ForEach(descriptionLines, id: \.self) { line in
+                Text(line)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: formulaWidth, alignment: .leading)
+            }
+        }
+        .padding(14)
+        .onPreferenceChange(FormulaWidthKey.self) { width in
+            formulaWidth = max(width, 200)
+        }
+    }
+
+    private var lines: [String] {
+        description.components(separatedBy: "\n")
+    }
+
+    /// 공식이 아닌 설명 라인들
+    private var descriptionLines: [String] {
+        lines.filter { !isFormula($0) }
+    }
+
+    /// 공식 라인들
+    private var formulaLines: [String] {
+        lines.filter { isFormula($0) }
+    }
+
+    /// 공식인지 판단 (= 기호 포함)
+    private func isFormula(_ text: String) -> Bool {
+        text.contains(" = ")
+    }
+}
+
+// MARK: - Project Usage Info Popover
+
+/// 프로젝트별 사용량 info 팝오버
+/// "총"은 .primary, "실제"는 .blue로 하이라이팅
+private struct ProjectUsageInfoPopover: View {
+    let project: ProjectUsage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // 공식
+            formulaRow(label: "Total", formula: "= Input + Output + CacheW + CacheR", color: .green)
+            formulaRow(label: "Actual", formula: "= In×1 + CacheW×1.25 + CacheR×0.1 + Out", color: .blue)
+
+            Divider()
+                .padding(.vertical, 2)
+
+            // 세부 값
+            detailRow(label: "Input", value: project.totalInput)
+            detailRow(label: "Output", value: project.totalOutput)
+            detailRow(label: "CacheWrite", value: project.cacheCreation)
+            detailRow(label: "CacheRead", value: project.cacheRead)
+
+            Divider()
+                .padding(.vertical, 2)
+
+            // 합계
+            HStack {
+                Text("Total")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.green)
+                Spacer()
+                Text(formatCount(project.totalTokens))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.green)
+            }
+
+            HStack {
+                Text("Actual")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.blue)
+                Spacer()
+                Text(formatCount(Int(project.actualTokenUsage)))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.blue)
+            }
+        }
+        .padding(14)
+        .frame(minWidth: 200)
+    }
+
+    private func formulaRow(label: String, formula: String, color: Color) -> some View {
+        Text("\(label) \(formula)")
+            .font(.system(size: 10, weight: .medium, design: .monospaced))
+            .foregroundStyle(color)
+    }
+
+    private func detailRow(label: String, value: Int) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(formatCount(value))
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func formatCount(_ count: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: count)) ?? "\(count)"
+    }
+}
+
 // MARK: - Project Usage Row
 
 private struct ProjectUsageRow: View {
     let project: ProjectUsage
+
+    @State private var showingInfo = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -176,15 +346,23 @@ private struct ProjectUsageRow: View {
 
             Spacer()
 
-            // 토큰 사용량
-            HStack(spacing: 16) {
-                tokenLabel("↓", value: formatCount(project.totalInput), color: .green)
-                tokenLabel("↑", value: formatCount(project.totalOutput), color: .orange)
+            // 토큰 사용량: 총 사용량, 실제 사용량
+            HStack(spacing: 12) {
+                tokenLabel("총", value: project.formattedTotal, color: .green)
+                tokenLabel("실제", value: project.formattedActualUsage, color: .blue)
 
-                Text(project.formattedTotal)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .frame(width: 60, alignment: .trailing)
+                // Info 버튼
+                Button {
+                    showingInfo.toggle()
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showingInfo, arrowEdge: .trailing) {
+                    ProjectUsageInfoPopover(project: project)
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -195,15 +373,14 @@ private struct ProjectUsageRow: View {
         }
     }
 
-    private func tokenLabel(_ symbol: String, value: String, color: Color) -> some View {
-        HStack(spacing: 2) {
-            Text(symbol)
-                .foregroundStyle(color)
-            Text(value)
+    private func tokenLabel(_ label: String, value: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Text(label)
                 .foregroundStyle(.secondary)
+            Text(value)
+                .foregroundStyle(color)
         }
         .font(.system(size: 11, design: .monospaced))
-        .frame(width: 50, alignment: .trailing)
     }
 
     private func formatCount(_ count: Int) -> String {
