@@ -1,4 +1,3 @@
-import Combine
 import SwiftUI
 
 private let debugTimestampFormatter: DateFormatter = {
@@ -11,7 +10,6 @@ struct DebugView: View {
     @EnvironmentObject private var debugLogStore: DebugLogStore
     @StateObject private var viewModel = DebugViewModel()
     @State private var expandedPayloadIds: Set<UUID> = []
-    private let refreshTimer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ScrollView {
@@ -56,10 +54,6 @@ struct DebugView: View {
         .onChange(of: viewModel.debugEnabled) { _, _ in
             debugLogStore.reload()
         }
-        .onReceive(refreshTimer) { _ in
-            guard viewModel.debugEnabled else { return }
-            debugLogStore.reload()
-        }
     }
 
     private func debugCard(for entry: DebugLogEntry) -> some View {
@@ -89,12 +83,26 @@ struct DebugView: View {
                 metaRow(label: "Prompt", value: prompt)
             }
 
-            Button {
-                togglePayload(entry.id)
-            } label: {
-                payloadHeader(for: entry)
+            HStack {
+                Button {
+                    togglePayload(entry.id)
+                } label: {
+                    payloadHeader(for: entry)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button {
+                    ClipboardService.copy(entry.rawPayload)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Payload 복사")
             }
-            .buttonStyle(.plain)
 
             if expandedPayloadIds.contains(entry.id) {
                 Text(JSONFormattingService.highlighted(entry.rawPayload))

@@ -82,24 +82,17 @@
 
 ## UI 기능
 
-- [ ] 이미 실행 중인 세션 감지 기능
-  - 설명: Resume 버튼 클릭 시 해당 Claude 세션이 이미 터미널에서 실행 중인지 확인. 프로세스 인자(`claude --resume <session-id>`)로 감지 가능. 이미 실행 중이면 경고 표시 또는 기존 터미널로 포커스 이동
-  - 비용: M
-  - 영향도: Mid
-  - 관련 파일: `ClaudeSessionManager/Services/TerminalService.swift`, `ClaudeSessionManager/Views/Session/SessionCardView.swift`
-  - 하위 항목:
-    - [ ] TerminalService에 isSessionRunning(sessionId:) 메서드 추가
-      - 설명: `pgrep -f "claude --resume <sessionId>"` 실행하여 프로세스 존재 여부 반환
-      - 비용: S
-    - [ ] Resume 버튼 클릭 시 실행 여부 확인 및 처리
-      - 설명: 이미 실행 중이면 Alert 표시 ("이미 터미널에서 실행 중입니다") 또는 해당 터미널 창으로 포커스 이동
-      - 비용: S
+- [ ] ~~이미 실행 중인 세션 감지 기능~~ (구현 불가)
+  - 설명: Resume 버튼 클릭 시 해당 Claude 세션이 이미 터미널에서 실행 중인지 확인
+  - 사유: Claude CLI가 `--resume` 인자를 프로세스 명령줄에 노출하지 않음. 세션 ID가 환경 변수로도 노출되지 않아 특정 세션의 실행 여부를 외부에서 확인할 방법이 없음
 
-- [ ] Full 레이아웃 카드에 터미널 열기 버튼 추가
-  - 설명: 격자(SessionGridView) 섹션 헤더에는 `TerminalService.openDirectory()` 버튼이 있으나, SessionCardView의 full 레이아웃에는 터미널 열기 버튼 없음. 해당 세션 디렉토리에서 새 터미널을 여는 버튼 추가 필요
+- [x] Full 레이아웃(리스트 뷰) 섹션 헤더에 터미널 열기 버튼 추가
+  - 설명: 격자(SessionGridView) 섹션 헤더에는 `TerminalService.openDirectory()` 버튼이 있으나, 리스트 뷰(sectionListView)의 섹션 헤더에는 터미널 열기 버튼 없음
+  - 해결: sectionListView의 SessionSectionHeader에 `onTerminalTap` 파라미터 추가, 그리드 뷰와 동일하게 디렉토리 이름 옆에 터미널 버튼 표시
   - 비용: XS
   - 영향도: Low
-  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionCardView.swift`
+  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionView.swift:103-115`
+  - 완료일: 2026-01-17
 
 - [x] 즐겨찾기 섹션 기능
   - 설명: 디렉토리 섹션을 즐겨찾기로 지정 가능. 섹션 헤더 왼쪽에 별(★) 아이콘으로 표시/토글. 즐겨찾기 섹션은 세션이 없어도 '새 세션' 버튼과 함께 항상 표시됨
@@ -201,11 +194,13 @@
 
 ## Debug 기능
 
-- [ ] Debug 패널 payload 복사 버튼 추가
+- [x] Debug 패널 payload 복사 버튼 추가
   - 설명: Payload 헤더 영역에 복사 버튼 추가. 클릭 시 `rawPayload`(JSON 문자열)를 클립보드에 복사. 기존 `ClipboardService.copy()` 활용
+  - 해결: Payload 헤더 옆에 `doc.on.doc` 아이콘 버튼 추가, `ClipboardService.copy(entry.rawPayload)` 호출
   - 비용: XS
   - 영향도: Low
   - 관련 파일: `ClaudeSessionManager/Views/Debug/DebugView.swift`
+  - 완료일: 2026-01-17
 
 ## 버그
 
@@ -254,18 +249,29 @@
   - 관련 파일: `ClaudeSessionManager/Views/Session/SessionCardView.swift`
   - 완료일: 2026-01-16
 
-- [ ] 권한/선택 요청 버튼 디자인 개선
+- [x] 권한/선택 요청 버튼 디자인 개선
   - 설명: 권한 요청과 선택 요청의 버튼 디자인 및 라벨 일관성 문제 해결
+  - 해결: 모든 터미널 위임 버튼을 "Ask in Terminal"로 통일, Allow 버튼 민트 계열 색상 적용, 모든 TextField에 Enter 제출 기능 구현
   - 비용: S (하위 합산)
   - 영향도: Mid
   - 관련 파일: `ClaudeSessionManager/Views/Components/PermissionRequestView.swift`
+  - 완료일: 2026-01-17
   - 하위 항목:
-    - [ ] 터미널 위임 버튼 라벨 통일
+    - [x] 터미널 위임 버튼 라벨 통일
       - 설명: 현재 권한 요청은 "Ask", 선택 요청은 "터미널에서"/"터미널"로 표시됨. 같은 기능(Claude Code 터미널로 위임)인데 라벨이 달라 혼란스러움. 일관된 라벨로 통일 필요 (예: 모두 "터미널에서" 또는 "Ask in Terminal")
+      - 해결: 모든 터미널 위임 버튼을 "Ask in Terminal"로 통일
       - 비용: XS
-    - [ ] ALLOW/DENY/ASK 버튼 스타일 개선
+      - 완료일: 2026-01-17
+    - [x] ALLOW/DENY/ASK 버튼 스타일 개선
       - 설명: 버튼 색상, 크기, 아이콘 등 디자인 요소 검토 및 개선. 현재 Allow=초록, Deny=빨강은 직관적이나 Ask 버튼이 시각적으로 약함
+      - 해결: Allow 버튼에 세련된 민트 계열 색상 적용, 전체적으로 일관된 스타일 유지
       - 비용: XS
+      - 완료일: 2026-01-17
+    - [x] 선택 화면 Enter 제출 기능
+      - 설명: 권한/선택 요청 화면에서 "Other" TextField 입력 후 Enter 키로 제출 가능하도록 개선. 버튼 활성화 조건(canSubmitWithAnswers)과 동일한 조건에서만 제출
+      - 해결: InlineQuestionSelectionView, QuestionSelectionView, GridQuestionPopoverContent의 모든 TextField에 onSubmit 구현
+      - 비용: S
+      - 완료일: 2026-01-17
 
 ## 알림
 
@@ -287,18 +293,93 @@
   - 관련 파일: `ClaudeSessionManager/Services/Transcript/TranscriptArchiveService.swift`, `ClaudeSessionManager/Services/HookRunner.swift`
   - 완료일: 2026-01-16
 
-- [ ] Assistant 응답별 토큰 사용량 표시
+- [x] Assistant 응답별 토큰 사용량 표시
   - 설명: 트랜스크립트에서 각 Assistant 응답에 해당 요청의 토큰 사용량(input/output/cache) 표시. Claude Code transcript.jsonl의 `message.usage` 필드에서 토큰 정보 파싱
+  - 해결:
+    - `TokenUsage` 구조체 추가 (inputTokens, outputTokens, cacheCreationInputTokens, cacheReadInputTokens)
+    - `TranscriptEntry`에 `usage: TokenUsage?` 필드 추가
+    - `TranscriptArchiveService.extractUsage()` 메서드로 `message.usage` 파싱
+    - `TranscriptRowView` 헤더에 `TokenUsageView` 컴포넌트 추가
+    - 요약 표시: "↓1.2K ↑350 💾5K" (hover 시 상세 정보 팝오버)
   - 비용: M
   - 영향도: Mid
   - 관련 파일: `ClaudeSessionManager/Models/Transcript/TranscriptEntry.swift`, `ClaudeSessionManager/Services/Transcript/TranscriptArchiveService.swift`, `ClaudeSessionManager/Views/Session/TranscriptRowView.swift`
+  - 완료일: 2026-01-17
   - 하위 항목:
-    - [ ] TranscriptEntry에 토큰 사용량 필드 추가
+    - [x] TranscriptEntry에 토큰 사용량 필드 추가
       - 설명: `TokenUsage` 구조체 정의 (inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens). TranscriptEntry에 옵셔널 `usage: TokenUsage?` 필드 추가
       - 비용: S
-    - [ ] TranscriptArchiveService에서 usage 필드 파싱
+      - 완료일: 2026-01-17
+    - [x] TranscriptArchiveService에서 usage 필드 파싱
       - 설명: `buildEntry()` 메서드에서 `message.usage` 객체 파싱. Assistant 메시지에만 존재하므로 조건부 처리
       - 비용: S
-    - [ ] TranscriptRowView에 토큰 표시 UI 추가
+      - 완료일: 2026-01-17
+    - [x] TranscriptRowView에 토큰 표시 UI 추가
       - 설명: Assistant 메시지 하단에 토큰 사용량 표시 (예: "↓1.2K ↑350 💾5K"). 접이식 또는 hover로 상세 표시 고려
       - 비용: S
+      - 완료일: 2026-01-17
+
+## 앱 구조
+
+- [ ] 사이드바 탭 그룹 추가
+  - 설명: 왼쪽에 접기 가능한 탭 그룹 생성. 현재 세션 목록을 "세션" 탭으로, 새로운 "통계" 탭 추가
+  - 비용: L (하위 합산)
+  - 영향도: High
+  - 관련 파일: `ClaudeSessionManager/Views/ContentView.swift`, `ClaudeSessionManager/Views/Session/SessionView.swift` (신규 파일 다수)
+  - 하위 항목:
+    - [ ] 사이드바 컨테이너 뷰 구현
+      - 설명: NavigationSplitView 또는 HSplitView 기반 사이드바. 탭 아이콘 + 라벨, 접기/펼치기 토글
+      - 비용: M
+    - [ ] 통계 탭 설계 및 구현
+      - 설명: 토큰 사용량 통계를 주로 다룸. 표시할 정보 및 UI 구성 설계 필요
+      - 비용: L
+      - 설계 필요:
+        - 기간별 토큰 사용량 (일/주/월)
+        - 프로젝트별 토큰 사용량
+        - 세션별 토큰 사용량 순위
+        - 캐시 효율 (cache hit rate)
+        - 비용 추정 (선택적)
+
+## 리팩토링
+
+- [ ] 훅 의존 경량화
+  - 설명: 훅 이벤트 기반으로 단순화하여 폴링/파일 의존 최소화
+  - 비용: M (하위 합산)
+  - 영향도: Mid
+  - 하위 항목:
+    - [x] 상태 enum 통합 (SessionRecordStatus → SessionStatus)
+      - 설명: 동일 케이스 중복 정의 제거. `SessionStatus`에 `Codable` 추가, `SessionRecordStatus` 삭제
+      - 해결:
+        - `SessionStatus`를 `Models/SessionStatus.swift`로 분리하여 공용 타입으로 생성
+        - `SessionStore.SessionRecordStatus` 삭제
+        - `SessionStore.SessionRecord.status` 타입을 `SessionStatus`로 변경
+        - `SessionItem.init(recordStatus:)` 변환 extension 삭제
+        - `SessionListViewModel.changeSessionStatus()`에서 변환 코드 제거
+      - 비용: S
+      - 관련 파일: `Models/SessionStatus.swift` (신규), `SessionStore.swift`, `SessionModels.swift`, `SessionListViewModel.swift`
+      - 완료일: 2026-01-17
+    - [x] .permission → .finished 아카이브 리로드 보장
+      - 설명: `handleSessionUpdate()` 조건을 `.running || .permission`으로 개선
+      - 해결: 진행 상태(.running/.permission) → 완료(.finished) 전환 시 transcript 리로드하도록 조건 수정
+      - 비용: XS
+      - 관련 파일: `SessionArchiveViewModel.swift:114-121`
+      - 완료일: 2026-01-17
+    - [x] DebugView 타이머 제거 → 이벤트 기반 갱신
+      - 설명: 1초 폴링 대신 `sessionsDidChangeNotification` 구독으로 훅 이벤트 시에만 갱신
+      - 해결: DebugLogStore에 notification 구독 추가, DebugView에서 Timer.publish 및 onReceive 제거
+      - 비용: S
+      - 관련 파일: `DebugLogStore.swift`, `DebugView.swift`
+      - 완료일: 2026-01-17
+    - [x] 세션 파일 삭제 기능 설정 옵션화
+      - 설명: `ClaudeSessionService.deleteSession()` 호출을 설정에서 on/off 가능하게. Claude Code 내부 경로 규칙 변경 시 호환성 문제 대비
+      - 해결:
+        - `SettingsKeys.deleteClaudeSessionFiles` 설정 키 추가 (기본값: true)
+        - `SettingsStore.deleteClaudeSessionFilesEnabled()` getter 추가
+        - `SessionListViewModel.deleteSession()` 및 `SessionArchiveViewModel.deleteSession()`에서 설정 확인 후 삭제
+      - 비용: S
+      - 관련 파일: `SettingsStore.swift`, `SessionListViewModel.swift`, `SessionArchiveViewModel.swift`
+      - 완료일: 2026-01-17
+    - [ ] [고려] transcript 파일 의존 최소화
+      - 설명: Stop 훅 시 transcript.jsonl 파싱 의존도 검토. 훅 페이로드 정보만 사용하거나 아카이빙을 선택적 기능으로 분리 가능성 검토
+      - 비용: L (구조 변경 시)
+      - 관련 파일: `TranscriptArchiveService.swift`, `HookRunner.swift`

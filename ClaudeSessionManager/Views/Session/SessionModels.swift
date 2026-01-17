@@ -1,6 +1,11 @@
-import Foundation
-import SwiftUI
+// MARK: - 파일 설명
+// SessionModels: 세션 목록 UI에서 사용하는 ViewModel 데이터 모델
+// - SessionItem: 세션 카드에 표시할 데이터
+// - SessionRecord → SessionItem 변환 로직
 
+import Foundation
+
+/// 세션 목록 UI에서 사용하는 세션 항목 데이터
 struct SessionItem: Identifiable {
     let id: String
     let name: String
@@ -15,90 +20,23 @@ struct SessionItem: Identifiable {
     let isUnseen: Bool            // 완료 후 미확인 상태 여부
 }
 
-enum SessionStatus: String {
-    case running
-    case finished
-    case permission
-    case normal
-    case ended
 
-    var label: String {
-        switch self {
-        case .running:
-            return "진행중"
-        case .finished:
-            return "완료"
-        case .permission:
-            return "권한/선택 대기중"
-        case .normal:
-            return "대기"
-        case .ended:
-            return "종료"
-        }
-    }
+// MARK: - SessionRecord 변환
 
-    var tint: Color {
-        switch self {
-        case .running:
-            return Color.green
-        case .finished:
-            return Color.blue
-        case .permission:
-            return Color.orange
-        case .normal:
-            return Color.gray
-        case .ended:
-            return Color.red
-        }
-    }
-
-    var background: Color {
-        switch self {
-        case .running:
-            return Color.green.opacity(0.12)
-        case .finished:
-            return Color.blue.opacity(0.12)
-        case .permission:
-            return Color.orange.opacity(0.12)
-        case .normal:
-            return Color.gray.opacity(0.12)
-        case .ended:
-            return Color.red.opacity(0.12)
-        }
-    }
-}
-
-extension SessionStatus {
-    init(recordStatus: SessionStore.SessionRecordStatus) {
-        switch recordStatus {
-        case .running:
-            self = .running
-        case .finished:
-            self = .finished
-        case .permission:
-            self = .permission
-        case .normal:
-            self = .normal
-        case .ended:
-            self = .ended
-        }
-    }
-}
-
-// 세션 위치 정보 보정 유틸
 extension SessionItem {
+    /// SessionStore.SessionRecord에서 SessionItem 생성
     init(record: SessionStore.SessionRecord) {
         id = record.id
         name = record.name
         detail = record.detail
         location = record.location
-        status = SessionStatus(recordStatus: record.status)
+        status = record.status
         updatedText = SessionItem.relativeUpdateText(from: record.updatedAt)
         startedAt = record.startedAt
         duration = record.duration
         lastPrompt = record.lastPrompt
         lastResponse = record.lastResponse
-        // finished 상태이고 미확인이면 반짝이는 효과 표시
+        // finished 상태이고 미확인이면 테두리 강조 표시
         isUnseen = (record.status == .finished) && !SessionStore.isSessionSeen(sessionId: record.id)
     }
 

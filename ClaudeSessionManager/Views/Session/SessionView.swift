@@ -108,6 +108,9 @@ struct SessionView: View {
                             isFavorite: section.isFavorite,
                             onFavoriteTap: {
                                 viewModel.toggleFavorite(section.id)
+                            },
+                            onTerminalTap: {
+                                TerminalService.openDirectory(location: section.sessions.first?.location)
                             }
                         )
                     }

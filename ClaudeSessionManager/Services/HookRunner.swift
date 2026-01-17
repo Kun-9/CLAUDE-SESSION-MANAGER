@@ -105,13 +105,13 @@ enum HookRunner {
 
     // Stop 이벤트 처리
     private static func handleStop(_ event: HookEvent) {
-        // 응답 완료 상태로 전환
-        SessionStore.updateSessionStatus(sessionId: event.session_id, status: .finished)
-        // transcript_path 기반 아카이빙
+        // 1. transcript_path 기반 아카이빙 (상태 변경 전에 수행)
+        // - 상태 변경 후 notification이 발송되므로, 아카이빙이 먼저 완료되어야 함
         let summary = TranscriptArchiveService.archiveTranscript(
             sessionId: event.session_id,
             transcriptPath: event.transcript_path
         )
+        // 2. 아카이브 요약 정보 갱신
         if let summary {
             SessionStore.updateSessionArchive(
                 sessionId: event.session_id,
@@ -119,6 +119,8 @@ enum HookRunner {
                 lastResponse: summary.lastResponse
             )
         }
+        // 3. 응답 완료 상태로 전환 (notification 발송됨)
+        SessionStore.updateSessionStatus(sessionId: event.session_id, status: .finished)
         guard SettingsStore.stopEnabled() else { return }
         notify(message: "✅ 응답이 완료되었습니다.", cwd: event.cwd, sessionId: event.session_id)
     }

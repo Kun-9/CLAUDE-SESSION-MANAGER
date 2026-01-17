@@ -240,6 +240,11 @@ private struct PermissionRequestCard: View {
                             onSelectOther: {
                                 selectedOptions[index] = nil
                                 isOtherSelected[index] = true
+                            },
+                            onSubmit: {
+                                if canSubmitWithAnswers {
+                                    onAllow(answersDict)
+                                }
                             }
                         )
                     }
@@ -436,6 +441,11 @@ struct InlinePermissionRequestView: View {
                             },
                             onHoverTooltip: { tooltip in
                                 hoveredTooltip = tooltip
+                            },
+                            onSubmit: {
+                                if canSubmitWithAnswers {
+                                    onAllow(answersDict)
+                                }
                             }
                         )
                     }
@@ -652,6 +662,7 @@ private struct InlineQuestionSelectionView: View {
     let onToggle: (String) -> Void  // 토글 (multiSelect) 또는 선택 (단일)
     let onSelectOther: () -> Void
     let onHoverTooltip: (HoveredTooltip?) -> Void  // 부모에서 툴팁 렌더링
+    let onSubmit: () -> Void  // Enter 키 제출 (부모에서 canSubmit 확인 후 호출)
 
     @FocusState private var isTextFieldFocused: Bool
 
@@ -738,6 +749,9 @@ private struct InlineQuestionSelectionView: View {
                             .strokeBorder(Color.blue.opacity(0.5), lineWidth: 1)
                     }
                     .focused($isTextFieldFocused)
+                    .onSubmit {
+                        onSubmit()
+                    }
             }
         }
     }
@@ -753,6 +767,7 @@ private struct QuestionSelectionView: View {
     @Binding var customInput: String
     let onSelect: (String) -> Void
     let onSelectOther: () -> Void
+    let onSubmit: () -> Void  // Enter 키 제출 (부모에서 canSubmit 확인 후 호출)
 
     @FocusState private var isTextFieldFocused: Bool
     @State private var hoveredTooltip: HoveredTooltip?
@@ -839,6 +854,9 @@ private struct QuestionSelectionView: View {
                                 .strokeBorder(Color.blue.opacity(0.5), lineWidth: 1)
                         }
                         .focused($isTextFieldFocused)
+                        .onSubmit {
+                            onSubmit()
+                        }
                 }
             }
         }
@@ -1309,6 +1327,11 @@ private struct GridQuestionPopoverContent: View {
                         .overlay {
                             RoundedRectangle(cornerRadius: 6)
                                 .strokeBorder(Color.blue.opacity(0.3), lineWidth: 1)
+                        }
+                        .onSubmit {
+                            if canSubmit {
+                                onSubmit()
+                            }
                         }
                     }
                 }

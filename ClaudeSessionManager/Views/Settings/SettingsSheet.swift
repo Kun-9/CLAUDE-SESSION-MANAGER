@@ -17,6 +17,7 @@ struct SettingsSheet: View {
     @Binding var draftSoundName: String
     @Binding var draftSoundVolume: Double
     @Binding var draftTerminalApp: String
+    @Binding var draftDeleteClaudeSessionFiles: Bool
 
     // MARK: - 저장된 값 (UserDefaults에서 직접 읽기)
     @AppStorage(SettingsKeys.notificationsEnabled, store: SettingsStore.defaults)
@@ -39,6 +40,8 @@ struct SettingsSheet: View {
     private var storedSoundVolume = 1.0
     @AppStorage(SettingsKeys.terminalApp, store: SettingsStore.defaults)
     private var storedTerminalApp = TerminalApp.iTerm2.rawValue
+    @AppStorage(SettingsKeys.deleteClaudeSessionFiles, store: SettingsStore.defaults)
+    private var storedDeleteClaudeSessionFiles = true
 
     let soundOptions: [String]
     let onSave: () -> Void
@@ -56,6 +59,7 @@ struct SettingsSheet: View {
             || storedSoundName != draftSoundName
             || storedSoundVolume != draftSoundVolume
             || storedTerminalApp != draftTerminalApp
+            || storedDeleteClaudeSessionFiles != draftDeleteClaudeSessionFiles
     }
 
     // MARK: - State
@@ -148,6 +152,8 @@ struct SettingsSheet: View {
         switch selectedTab {
         case .notifications:
             notificationsView
+        case .sessions:
+            sessionsView
         case .terminal:
             terminalView
         case .hooks:
@@ -277,6 +283,34 @@ struct SettingsSheet: View {
                     }
                     .foregroundStyle(draftNotificationsEnabled && draftSoundEnabled ? .primary : .secondary)
                     .disabled(!draftNotificationsEnabled || !draftSoundEnabled)
+                }
+            }
+            .padding(24)
+        }
+        .contentShape(Rectangle())
+        .simultaneousGesture(TapGesture().onEnded { dismissFocus() })
+    }
+
+    // MARK: - Sessions View
+
+    private var sessionsView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        SectionHeaderView(
+                            title: "Session Files",
+                            subtitle: "세션 삭제 시 Claude Code 원본 파일 처리"
+                        )
+                        Spacer()
+                        Toggle("", isOn: $draftDeleteClaudeSessionFiles)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                    }
+
+                    Text("비활성화 시 앱 내 세션 레코드만 삭제되고, ~/.claude/projects/ 하위의 원본 파일은 유지됩니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(24)
@@ -502,6 +536,7 @@ struct SettingsSheet: View {
 
 private enum SettingsTab: String, CaseIterable, Identifiable {
     case notifications = "Notifications"
+    case sessions = "Sessions"
     case terminal = "Terminal"
     case hooks = "Hooks"
     case debug = "Debug"
@@ -513,6 +548,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .notifications: return "bell"
+        case .sessions: return "folder"
         case .terminal: return "rectangle.on.rectangle"
         case .hooks: return "terminal"
         case .debug: return "ladybug"
