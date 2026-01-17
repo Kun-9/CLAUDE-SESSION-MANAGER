@@ -12,13 +12,36 @@ struct ProjectUsage: Identifiable {
     let sessionCount: Int
     let totalInput: Int
     let totalOutput: Int
+    let cacheCreation: Int
     let cacheRead: Int
 
-    /// 총 토큰 (input + output)
-    var totalTokens: Int { totalInput + totalOutput }
+    /// 총 입력 토큰 수
+    /// 계산식: totalInput + cacheCreation + cacheRead
+    var totalInputTokens: Int {
+        totalInput + cacheCreation + cacheRead
+    }
+
+    /// 총 토큰 수
+    /// 계산식: totalInputTokens + totalOutput
+    /// - 참고: .claude/docs/anthropic-token-usage.md
+    var totalTokens: Int {
+        totalInputTokens + totalOutput
+    }
+
+    /// 실제 토큰 사용량 (비용 기준)
+    /// 계산식: Input×1 + CacheWrite×1.25 + CacheRead×0.1 + Output
+    var actualTokenUsage: Double {
+        Double(totalInput) + Double(cacheCreation) * 1.25 + Double(cacheRead) * 0.1 + Double(totalOutput)
+    }
+
+    /// 포맷된 총 입력
+    var formattedTotalInput: String { formatTokenCount(totalInputTokens) }
 
     /// 포맷된 총 토큰
     var formattedTotal: String { formatTokenCount(totalTokens) }
+
+    /// 포맷된 실제 사용량
+    var formattedActualUsage: String { formatTokenCount(Int(actualTokenUsage)) }
 
     private func formatTokenCount(_ count: Int) -> String {
         if count >= 1_000_000 {
@@ -41,20 +64,45 @@ struct TotalStatistics {
     let cacheCreation: Int
     let cacheRead: Int
 
-    var totalTokens: Int { totalInput + totalOutput }
-
-    /// 캐시 효율 (캐시 읽기 / 총 입력)
-    var cacheHitRate: Double {
-        let total = totalInput + cacheRead
-        guard total > 0 else { return 0 }
-        return Double(cacheRead) / Double(total) * 100
+    /// 총 입력 토큰 수
+    /// 계산식: totalInput + cacheCreation + cacheRead
+    /// - 참고: .claude/docs/anthropic-token-usage.md
+    var totalInputTokens: Int {
+        totalInput + cacheCreation + cacheRead
     }
 
-    var formattedCacheHitRate: String { String(format: "%.1f%%", cacheHitRate) }
+    /// 총 토큰 수
+    /// 계산식: totalInputTokens + totalOutput
+    var totalTokens: Int {
+        totalInputTokens + totalOutput
+    }
+
+    /// 실제 토큰 사용량 (비용 기준)
+    /// 계산식: Input×1 + CacheWrite×1.25 + CacheRead×0.1 + Output
+    /// - 참고: .claude/docs/anthropic-token-usage.md
+    var actualTokenUsage: Double {
+        Double(totalInput) + Double(cacheCreation) * 1.25 + Double(cacheRead) * 0.1 + Double(totalOutput)
+    }
+
+    /// 캐시 비용 절감률 (비용 기반)
+    /// - 일반 입력: 1x, Cache Write: 1.25x, Cache Read: 0.1x
+    /// - 절감률 = (기본비용 - 실제비용) / 기본비용 × 100
+    var cacheSavingsRate: Double {
+        let baseCost = Double(totalInputTokens)
+        guard baseCost > 0 else { return 0 }
+        let actualInputCost = Double(totalInput) + Double(cacheCreation) * 1.25 + Double(cacheRead) * 0.1
+        let savings = baseCost - actualInputCost
+        return savings / baseCost * 100
+    }
+
+    var formattedCacheSavingsRate: String { String(format: "%.1f%%", cacheSavingsRate) }
+    var formattedTotalInput: String { formatLargeTokenCount(totalInputTokens) }
+    var formattedActualUsage: String { formatLargeTokenCount(Int(actualTokenUsage)) }
     var formattedTotal: String { formatLargeTokenCount(totalTokens) }
     var formattedInput: String { formatLargeTokenCount(totalInput) }
     var formattedOutput: String { formatLargeTokenCount(totalOutput) }
     var formattedCacheRead: String { formatLargeTokenCount(cacheRead) }
+    var formattedCacheCreation: String { formatLargeTokenCount(cacheCreation) }
 
     private func formatLargeTokenCount(_ count: Int) -> String {
         if count >= 1_000_000 {
