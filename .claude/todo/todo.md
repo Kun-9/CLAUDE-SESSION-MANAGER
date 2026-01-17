@@ -202,6 +202,36 @@
   - 관련 파일: `ClaudeSessionManager/Views/Debug/DebugView.swift`
   - 완료일: 2026-01-17
 
+## 권한 요청 UI
+
+- [ ] [버그] 동시 권한 요청 시 일부만 처리되는 문제
+  - 설명: 같은 세션에서 여러 권한 요청(Glob, Bash 등)이 동시에 발생할 때, 앱에서 하나의 요청만 선택/처리하면 나머지 요청들이 UI에서 사라지거나 선택 불가 상태가 됨. 터미널에서는 첫 번째만 처리되고 나머지가 대기 상태로 남음
+  - 재현 시나리오:
+    1. Claude Code가 동시에 Glob + Bash 권한 요청 발생
+    2. 앱에서 첫 번째 요청(Glob)에 Allow 클릭
+    3. 두 번째 요청(Bash)이 UI에서 사라지거나 선택 불가
+    4. 터미널에서는 Bash가 대기 상태로 남음
+  - 원인 추정: 응답 전송 후 같은 sessionId의 모든 pending 요청을 삭제하거나, UI 갱신 시 이전 요청 목록을 덮어쓰는 문제로 추정
+  - 비용: M
+  - 영향도: High
+  - 관련 파일: `ClaudeSessionManager/Services/PermissionRequestStore.swift`, `ClaudeSessionManager/Views/Components/PermissionRequestView.swift`
+
+- [ ] 권한 요청 시 도구 정보 표시 기능
+  - 설명: 권한 요청(PermissionRequest) 시 어떤 도구(Read, Edit, Bash 등)의 권한인지 뱃지로 표시. 클릭 시 tool_input 등 상세 정보(파일 경로, 명령어 등)를 팝오버로 표시
+  - 비용: M
+  - 영향도: Mid
+  - 관련 파일: `ClaudeSessionManager/Views/Components/PermissionRequestView.swift`, `ClaudeSessionManager/Services/PermissionRequestStore.swift`
+  - 하위 항목:
+    - [ ] PermissionRequest 모델에 tool_input 필드 추가
+      - 설명: 현재 toolName만 저장. 훅 페이로드의 tool_input(파일 경로, 명령어 등) 저장 필드 추가. JSON Dictionary 또는 구조화된 타입으로 저장
+      - 비용: S
+    - [ ] 도구 이름 뱃지 UI 추가
+      - 설명: PermissionRequestCard, InlinePermissionRequestView에 toolName 뱃지 표시. Read=파랑, Edit=주황, Bash=보라 등 색상 구분
+      - 비용: S
+    - [ ] 도구 상세 정보 팝오버 추가
+      - 설명: 뱃지 클릭 시 팝오버로 tool_input 상세 표시. Read/Edit는 file_path, Bash는 command 등 도구별 포맷팅
+      - 비용: S
+
 ## 버그
 
 - [x] 권한 요청 툴팁 z-index 문제
@@ -230,14 +260,6 @@
   - 영향도: High
   - 관련 파일: `ClaudeSessionManager/Views/Components/PermissionRequestView.swift:67-95`
   - 완료일: 2026-01-16
-
-## UI 기능 개선
-
-- [ ] 권한/선택 요청 영역 컨텍스트 메뉴 추가
-  - 설명: InlinePermissionRequestView(세션 카드 아래 인라인 권한 요청 영역)에서 우클릭 시 기존 SessionContextMenu와 동일한 액션(상태 변경, 이름 변경, 대화 이어하기, 삭제) 제공. 현재는 세션 카드에서만 우클릭 메뉴가 동작하고 권한 요청 영역에서는 동작하지 않음
-  - 비용: S
-  - 영향도: Low
-  - 관련 파일: `ClaudeSessionManager/Views/Components/PermissionRequestView.swift`, `ClaudeSessionManager/Views/Session/SessionGridView.swift`
 
 ## UI 일관성
 
@@ -325,11 +347,18 @@
   - 설명: 왼쪽에 접기 가능한 탭 그룹 생성. 현재 세션 목록을 "세션" 탭으로, 새로운 "통계" 탭 추가
   - 비용: L (하위 합산)
   - 영향도: High
-  - 관련 파일: `ClaudeSessionManager/Views/ContentView.swift`, `ClaudeSessionManager/Views/Session/SessionView.swift` (신규 파일 다수)
+  - 관련 파일: `ClaudeSessionManager/Views/ContentView.swift`, `ClaudeSessionManager/Views/Sidebar/` (신규 폴더)
   - 하위 항목:
-    - [ ] 사이드바 컨테이너 뷰 구현
-      - 설명: NavigationSplitView 또는 HSplitView 기반 사이드바. 탭 아이콘 + 라벨, 접기/펼치기 토글
+    - [x] 사이드바 컨테이너 뷰 구현
+      - 설명: Xcode/Finder 스타일의 아이콘 전용 사이드바. 마우스 오버 시 툴팁 표시
+      - 해결:
+        - `SidebarTab` enum 정의 (sessions, statistics)
+        - `SidebarView` 컴포넌트 구현 (아이콘 전용, 48px 너비)
+        - `ContentView`에 HStack으로 사이드바 통합
+        - 통계 탭은 비활성화 상태 (준비 중)
       - 비용: M
+      - 관련 파일: `Views/Sidebar/SidebarTab.swift`, `Views/Sidebar/SidebarView.swift`, `Views/ContentView.swift`
+      - 완료일: 2026-01-17
     - [ ] 통계 탭 설계 및 구현
       - 설명: 토큰 사용량 통계를 주로 다룸. 표시할 정보 및 UI 구성 설계 필요
       - 비용: L
