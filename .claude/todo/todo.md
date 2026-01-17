@@ -9,6 +9,10 @@
 영향도: Low / Mid / High
 -->
 
+## 관련 TODO 파일
+
+- [통계 탭 개선사항](statistics.md) - 기간 필터, 차트, 비용 추정 등
+
 ## 보안
 
 - [x] [심각] Command Injection 취약점 수정
@@ -244,6 +248,26 @@
   - 완료일: 2026-01-16
 
 ## 성능 최적화
+
+- [ ] 긴 대화 세션 스크롤 성능 개선
+  - 설명: 대화가 길어진 세션에서 스크롤 시 버벅임 발생. 특히 '상세보기' 토글 활성화 시 성능 저하가 심함
+  - 원인 분석:
+    - `MessageBubbleView.calculateCumulativeUsage()`가 매 렌더링마다 `allEntries` 순회
+    - `MessageBubbleStyle.from()`에서 `TranscriptFilter.isIntermediateAssistant()` 반복 호출
+    - 상세보기 활성화 시 표시되는 엔트리 수가 급증하여 문제 악화
+  - 비용: M
+  - 영향도: High
+  - 관련 파일: `ClaudeSessionManager/Views/Session/MessageBubble/MessageBubbleView.swift`, `ClaudeSessionManager/Views/Session/SessionTranscriptSplitView.swift`
+  - 하위 항목:
+    - [ ] cumulativeUsage 사전 계산 및 캐싱
+      - 설명: `SessionTranscriptListView` 레벨에서 각 entry별 cumulativeUsage를 미리 계산하여 Dictionary로 전달. 개별 셀에서 매번 계산하지 않도록 개선
+      - 비용: S
+    - [ ] isIntermediateAssistant 결과 캐싱
+      - 설명: `TranscriptFilter.isIntermediateAssistant()` 결과를 Dictionary로 캐싱. entries가 변경될 때만 재계산
+      - 비용: S
+    - [ ] [선택] 가상화(Virtualization) 강화 검토
+      - 설명: LazyVStack이 적용되어 있지만, 복잡한 뷰 재사용 시 성능 이슈 여부 확인. 필요시 추가 최적화
+      - 비용: S
 
 - [x] ElapsedTimeText 타이머 → TimelineView 교체
   - 설명: 현재 `Timer.publish(every: 1)` 방식은 세션 카드마다 독립 타이머 생성. 카드 10개면 타이머 10개가 매초 발동하며 백그라운드/화면 밖에서도 계속 실행됨. SwiftUI의 `TimelineView(.periodic)` 사용 시 시스템이 스케줄링 최적화하고 화면 밖이면 자동 중단

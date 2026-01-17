@@ -73,10 +73,62 @@ struct MessageBubbleView: View {
                 timestampOrIndicator
                 // 토큰 사용량 표시 (Assistant만)
                 if let usage = entry.usage {
-                    TokenUsageBadge(usage: usage)
+                    // 최종 응답 여부: TranscriptFilter의 기존 로직 활용
+                    let isFinal = !TranscriptFilter.isIntermediateAssistant(entry, in: allEntries)
+                    TokenUsageBadge(
+                        usage: usage,
+                        cumulativeUsage: isFinal ? calculateCumulativeUsage() : nil
+                    )
                 }
             }
         }
+    }
+
+    // MARK: - Cumulative Usage Calculation
+
+    /// 현재 프롬프트 내 누적 토큰 계산
+    /// - TranscriptFilter.findFinalAssistantIds와 동일한 그룹 기준 사용
+    private func calculateCumulativeUsage() -> TokenUsage {
+        guard let currentIndex = allEntries.firstIndex(where: { $0.id == entry.id }) else {
+            return .zero
+        }
+
+        // 현재 entry 이전의 마지막 "직접 사용자 입력" 찾기
+        var promptStartIndex = currentIndex
+        for i in stride(from: currentIndex - 1, through: 0, by: -1) {
+            if TranscriptFilter.isDirectUserInput(allEntries[i]) {
+                promptStartIndex = i + 1
+                break
+            }
+            if i == 0 {
+                promptStartIndex = 0
+            }
+        }
+
+        // 다음 "직접 사용자 입력" 또는 끝까지 범위 설정
+        var promptEndIndex = allEntries.count - 1
+        for i in (currentIndex + 1)..<allEntries.count {
+            if TranscriptFilter.isDirectUserInput(allEntries[i]) {
+                promptEndIndex = i - 1
+                break
+            }
+        }
+
+        // 프롬프트 내 모든 assistant 응답의 토큰 합산 (requestId 중복 제거)
+        var cumulativeUsage = TokenUsage.zero
+        var seenRequestIds = Set<String>()
+        for i in promptStartIndex...promptEndIndex {
+            if allEntries[i].role == .assistant, let usage = allEntries[i].usage {
+                // requestId가 있으면 중복 체크 (같은 API 요청의 여러 엔트리 방지)
+                if let requestId = allEntries[i].requestId {
+                    if seenRequestIds.contains(requestId) { continue }
+                    seenRequestIds.insert(requestId)
+                }
+                cumulativeUsage = cumulativeUsage.adding(usage)
+            }
+        }
+
+        return cumulativeUsage
     }
 
     /// 말풍선 내용
@@ -148,30 +200,55 @@ struct MessageBubbleBadge: View {
 /// 토큰 사용량 배지 (말풍선 헤더용)
 struct TokenUsageBadge: View {
     let usage: TokenUsage
+    /// 누적 사용량 (최종 응답에만 표시)
+    let cumulativeUsage: TokenUsage?
     @State private var isShowingDetail = false
 
+    init(usage: TokenUsage, cumulativeUsage: TokenUsage? = nil) {
+        self.usage = usage
+        self.cumulativeUsage = cumulativeUsage
+    }
+
+    /// 누적 부분 텍스트 (Σ...)
+    private var cumulativeText: String? {
+        guard let cumulative = cumulativeUsage else { return nil }
+        return "(Σ\(TokenUsage.formatTokenCount(cumulative.totalTokens)) · \(TokenUsage.formatTokenCount(Int(cumulative.actualTokenUsage))))"
+    }
+
     var body: some View {
-        Text(usage.formattedSummary)
-            .font(.caption2.monospacedDigit())
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.secondary.opacity(0.1))
-            )
-            .onTapGesture {
-                isShowingDetail.toggle()
+        HStack(spacing: 0) {
+            Text(usage.formattedSummary)
+                .foregroundStyle(.secondary)
+            if let cumText = cumulativeText {
+                Text(" " + cumText)
+                    .foregroundStyle(.purple)
             }
-            .popover(isPresented: $isShowingDetail, arrowEdge: .bottom) {
-                TokenUsageDetailPopover(usage: usage)
-            }
+        }
+        .font(.caption2.monospacedDigit())
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.secondary.opacity(0.1))
+        )
+        .onTapGesture {
+            isShowingDetail.toggle()
+        }
+        .popover(isPresented: $isShowingDetail, arrowEdge: .bottom) {
+            TokenUsageDetailPopover(usage: usage, cumulativeUsage: cumulativeUsage)
+        }
     }
 }
 
 /// 토큰 사용량 상세 팝오버
 private struct TokenUsageDetailPopover: View {
     let usage: TokenUsage
+    let cumulativeUsage: TokenUsage?
+
+    init(usage: TokenUsage, cumulativeUsage: TokenUsage? = nil) {
+        self.usage = usage
+        self.cumulativeUsage = cumulativeUsage
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -181,27 +258,54 @@ private struct TokenUsageDetailPopover: View {
 
             Divider()
 
+            // 세부 값
             tokenRow(label: "Input", value: usage.inputTokens)
             tokenRow(label: "Output", value: usage.outputTokens)
 
             if let cacheCreation = usage.cacheCreationInputTokens, cacheCreation > 0 {
-                tokenRow(label: "Cache Created", value: cacheCreation)
+                tokenRow(label: "CacheWrite", value: cacheCreation)
             }
 
             if let cacheRead = usage.cacheReadInputTokens, cacheRead > 0 {
-                tokenRow(label: "Cache Read", value: cacheRead)
+                tokenRow(label: "CacheRead", value: cacheRead)
             }
 
             Divider()
 
-            tokenRow(label: "Total Input", value: usage.totalInputTokens, isBold: true)
+            // 총 토큰 & 실제 사용량
+            tokenRow(label: "Total", value: usage.totalTokens, isBold: true)
+            tokenRow(label: "Actual", value: Int(usage.actualTokenUsage), isBold: true, color: .blue)
+
+            // 누적 (최종 응답에만)
+            if let cumulative = cumulativeUsage {
+                Divider()
+                tokenRow(label: "Σ Total", value: cumulative.totalTokens, isBold: true, color: .purple)
+                tokenRow(label: "Σ Actual", value: Int(cumulative.actualTokenUsage), isBold: true, color: .purple)
+            }
+
+            Divider()
+
+            // 공식
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Total = 총 토큰 수")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.primary)
+                Text("Actual = 실제 비용 (캐시 가중치 적용)")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.blue)
+                if cumulativeUsage != nil {
+                    Text("Σ = 프롬프트 내 모든 응답 합계")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.purple)
+                }
+            }
         }
         .padding(12)
-        .frame(minWidth: 160)
+        .frame(minWidth: 200)
     }
 
     @ViewBuilder
-    private func tokenRow(label: String, value: Int, isBold: Bool = false) -> some View {
+    private func tokenRow(label: String, value: Int, isBold: Bool = false, color: Color = .primary) -> some View {
         HStack {
             Text(label)
                 .font(isBold ? .caption.bold() : .caption)
@@ -209,7 +313,7 @@ private struct TokenUsageDetailPopover: View {
             Spacer()
             Text(formatNumber(value))
                 .font(isBold ? .caption.bold().monospacedDigit() : .caption.monospacedDigit())
-                .foregroundStyle(isBold ? .primary : .secondary)
+                .foregroundStyle(isBold ? color : .secondary)
         }
     }
 
