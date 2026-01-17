@@ -293,21 +293,52 @@
   - 관련 파일: `ClaudeSessionManager/Services/Transcript/TranscriptArchiveService.swift`, `ClaudeSessionManager/Services/HookRunner.swift`
   - 완료일: 2026-01-16
 
-- [ ] Assistant 응답별 토큰 사용량 표시
+- [x] Assistant 응답별 토큰 사용량 표시
   - 설명: 트랜스크립트에서 각 Assistant 응답에 해당 요청의 토큰 사용량(input/output/cache) 표시. Claude Code transcript.jsonl의 `message.usage` 필드에서 토큰 정보 파싱
+  - 해결:
+    - `TokenUsage` 구조체 추가 (inputTokens, outputTokens, cacheCreationInputTokens, cacheReadInputTokens)
+    - `TranscriptEntry`에 `usage: TokenUsage?` 필드 추가
+    - `TranscriptArchiveService.extractUsage()` 메서드로 `message.usage` 파싱
+    - `TranscriptRowView` 헤더에 `TokenUsageView` 컴포넌트 추가
+    - 요약 표시: "↓1.2K ↑350 💾5K" (hover 시 상세 정보 팝오버)
   - 비용: M
   - 영향도: Mid
   - 관련 파일: `ClaudeSessionManager/Models/Transcript/TranscriptEntry.swift`, `ClaudeSessionManager/Services/Transcript/TranscriptArchiveService.swift`, `ClaudeSessionManager/Views/Session/TranscriptRowView.swift`
+  - 완료일: 2026-01-17
   - 하위 항목:
-    - [ ] TranscriptEntry에 토큰 사용량 필드 추가
+    - [x] TranscriptEntry에 토큰 사용량 필드 추가
       - 설명: `TokenUsage` 구조체 정의 (inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens). TranscriptEntry에 옵셔널 `usage: TokenUsage?` 필드 추가
       - 비용: S
-    - [ ] TranscriptArchiveService에서 usage 필드 파싱
+      - 완료일: 2026-01-17
+    - [x] TranscriptArchiveService에서 usage 필드 파싱
       - 설명: `buildEntry()` 메서드에서 `message.usage` 객체 파싱. Assistant 메시지에만 존재하므로 조건부 처리
       - 비용: S
-    - [ ] TranscriptRowView에 토큰 표시 UI 추가
+      - 완료일: 2026-01-17
+    - [x] TranscriptRowView에 토큰 표시 UI 추가
       - 설명: Assistant 메시지 하단에 토큰 사용량 표시 (예: "↓1.2K ↑350 💾5K"). 접이식 또는 hover로 상세 표시 고려
       - 비용: S
+      - 완료일: 2026-01-17
+
+## 앱 구조
+
+- [ ] 사이드바 탭 그룹 추가
+  - 설명: 왼쪽에 접기 가능한 탭 그룹 생성. 현재 세션 목록을 "세션" 탭으로, 새로운 "통계" 탭 추가
+  - 비용: L (하위 합산)
+  - 영향도: High
+  - 관련 파일: `ClaudeSessionManager/Views/ContentView.swift`, `ClaudeSessionManager/Views/Session/SessionView.swift` (신규 파일 다수)
+  - 하위 항목:
+    - [ ] 사이드바 컨테이너 뷰 구현
+      - 설명: NavigationSplitView 또는 HSplitView 기반 사이드바. 탭 아이콘 + 라벨, 접기/펼치기 토글
+      - 비용: M
+    - [ ] 통계 탭 설계 및 구현
+      - 설명: 토큰 사용량 통계를 주로 다룸. 표시할 정보 및 UI 구성 설계 필요
+      - 비용: L
+      - 설계 필요:
+        - 기간별 토큰 사용량 (일/주/월)
+        - 프로젝트별 토큰 사용량
+        - 세션별 토큰 사용량 순위
+        - 캐시 효율 (cache hit rate)
+        - 비용 추정 (선택적)
 
 ## 리팩토링
 
