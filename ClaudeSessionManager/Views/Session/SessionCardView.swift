@@ -296,6 +296,10 @@ struct CommandHoverResumeOverlay: ViewModifier {
             .animation(.easeOut(duration: 0.15), value: isHovering)
             .onHover { hovering in
                 isHovering = hovering
+                // hover 시점에 현재 Command 키 상태 확인 (비활성 창에서 cmd 누른 채 진입 시)
+                if hovering {
+                    isCommandPressed = NSEvent.modifierFlags.contains(.command)
+                }
             }
             .onAppear {
                 // 현재 Command 키 상태 확인

@@ -119,7 +119,18 @@ enum HookRunner {
                 lastResponse: summary.lastResponse
             )
         }
-        // 3. 응답 완료 상태로 전환 (notification 발송됨)
+        // 3. 통계 저장소에 토큰 사용량 기록 (세션 삭제 후에도 유지)
+        if let sessionId = event.session_id,
+           let cwd = event.cwd,
+           let transcript = TranscriptArchiveStore.load(sessionId: sessionId),
+           let usage = transcript.totalUsage {
+            StatisticsStore.record(
+                sessionId: sessionId,
+                projectPath: cwd,
+                usage: usage
+            )
+        }
+        // 4. 응답 완료 상태로 전환 (notification 발송됨)
         SessionStore.updateSessionStatus(sessionId: event.session_id, status: .finished)
         guard SettingsStore.stopEnabled() else { return }
         notify(message: "✅ 응답이 완료되었습니다.", cwd: event.cwd, sessionId: event.session_id)
@@ -234,16 +245,44 @@ enum HookRunner {
         let trimmedId = event.session_id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmedId.isEmpty else { return }
 
-        // pending 권한 요청 삭제 (세션 종료 시)
+        // 1. pending 권한 요청 삭제 (세션 종료 시)
         PermissionRequestStore.deletePendingRequests(forSessionId: event.session_id)
 
-        // 세션 정보 확인
+        // 2. transcript_path 기반 아카이빙 (Stop에서 이미 완료된 경우도 있지만, 안전하게 재수행)
+        // - 사용자가 응답 없이 바로 exit한 경우에도 아카이빙 보장
+        let summary = TranscriptArchiveService.archiveTranscript(
+            sessionId: event.session_id,
+            transcriptPath: event.transcript_path
+        )
+
+        // 3. 아카이브 요약 정보 갱신
+        if let summary {
+            SessionStore.updateSessionArchive(
+                sessionId: event.session_id,
+                lastPrompt: summary.lastPrompt,
+                lastResponse: summary.lastResponse
+            )
+        }
+
+        // 4. 통계 저장소에 토큰 사용량 기록 (세션 삭제 후에도 유지)
+        if let sessionId = event.session_id,
+           let cwd = event.cwd,
+           let transcript = TranscriptArchiveStore.load(sessionId: sessionId),
+           let usage = transcript.totalUsage {
+            StatisticsStore.record(
+                sessionId: sessionId,
+                projectPath: cwd,
+                usage: usage
+            )
+        }
+
+        // 5. 세션 정보 확인
         let sessions = SessionStore.loadSessions()
         guard let session = sessions.first(where: { $0.id == trimmedId }) else { return }
 
-        // 대화가 없으면 (lastPrompt가 nil이면) 세션 삭제
+        // 6. 대화가 없으면 (lastPrompt가 nil이면) 세션 삭제
         // 최소 한 번의 대화가 있어야 종료 카드가 생성됨
-        if session.lastPrompt == nil {
+        if session.lastPrompt == nil && summary == nil {
             SessionStore.deleteSession(sessionId: event.session_id)
         } else {
             SessionStore.updateSessionStatus(sessionId: event.session_id, status: .ended)

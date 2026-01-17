@@ -51,6 +51,7 @@ struct ContentView: View {
     @State private var hasLoadedDrafts = false
     @State private var showSettings = false
     @State private var selectedSession: SessionItem?
+    @State private var selectedTab: SidebarTab = .sessions
     @FocusState private var isSessionModalFocused: Bool
     @AppStorage("ui.useDarkMode") private var useDarkMode = false
 
@@ -73,49 +74,68 @@ struct ContentView: View {
 
 private extension ContentView {
     var rootView: some View {
-        SessionView(selectedSession: $selectedSession)
-            .frame(minWidth: 600, minHeight: 500)
-            .onAppear {
-                if !hasLoadedDrafts {
-                    loadDrafts()
-                    hasLoadedDrafts = true
-                }
-                NSApp.appearance = NSAppearance(named: useDarkMode ? .darkAqua : .aqua)
-                // 창 제목 설정
-                DispatchQueue.main.async {
-                    NSApp.mainWindow?.title = "CLAUDE SESSION MANAGER"
-                }
+        HStack(spacing: 0) {
+            // 사이드바
+            SidebarView(selectedTab: $selectedTab)
+
+            Divider()
+
+            // 메인 콘텐츠
+            mainContent
+        }
+        .frame(minWidth: 650, minHeight: 500)
+        .onAppear {
+            if !hasLoadedDrafts {
+                loadDrafts()
+                hasLoadedDrafts = true
             }
-            .onChange(of: useDarkMode) { _, newValue in
-                NSApp.appearance = NSAppearance(named: newValue ? .darkAqua : .aqua)
+            NSApp.appearance = NSAppearance(named: useDarkMode ? .darkAqua : .aqua)
+            // 창 제목 설정
+            DispatchQueue.main.async {
+                NSApp.mainWindow?.title = "CLAUDE SESSION MANAGER"
             }
-            .onChange(of: selectedSession?.id) { _, newValue in
-                isSessionModalFocused = newValue != nil
-            }
-            .sheet(isPresented: $showSettings, onDismiss: loadDrafts) {
-                SettingsSheet(
-                    draftNotificationsEnabled: $draftNotificationsEnabled,
-                    draftPreToolUseEnabled: $draftPreToolUseEnabled,
-                    draftPreToolUseTools: $draftPreToolUseTools,
-                    draftStopEnabled: $draftStopEnabled,
-                    draftPermissionEnabled: $draftPermissionEnabled,
-                    draftInteractivePermission: $draftInteractivePermission,
-                    draftSoundEnabled: $draftSoundEnabled,
-                    draftSoundName: $draftSoundName,
-                    draftSoundVolume: $draftSoundVolume,
-                    draftTerminalApp: $draftTerminalApp,
-                    draftDeleteClaudeSessionFiles: $draftDeleteClaudeSessionFiles,
-                    soundOptions: soundOptions,
-                    onSave: saveDrafts,
-                    onClose: { showSettings = false }
-                )
-                .environmentObject(debugLogStore)
-                .environmentObject(toastCenter)
-            }
-            .overlay { sessionDetailOverlay }
-            .overlay(alignment: .bottom) { toastOverlay }
-            .overlay(alignment: .bottomLeading) { settingsButton }
-            .overlay(alignment: .bottomTrailing) { darkModeButton }
+        }
+        .onChange(of: useDarkMode) { _, newValue in
+            NSApp.appearance = NSAppearance(named: newValue ? .darkAqua : .aqua)
+        }
+        .onChange(of: selectedSession?.id) { _, newValue in
+            isSessionModalFocused = newValue != nil
+        }
+        .sheet(isPresented: $showSettings, onDismiss: loadDrafts) {
+            SettingsSheet(
+                draftNotificationsEnabled: $draftNotificationsEnabled,
+                draftPreToolUseEnabled: $draftPreToolUseEnabled,
+                draftPreToolUseTools: $draftPreToolUseTools,
+                draftStopEnabled: $draftStopEnabled,
+                draftPermissionEnabled: $draftPermissionEnabled,
+                draftInteractivePermission: $draftInteractivePermission,
+                draftSoundEnabled: $draftSoundEnabled,
+                draftSoundName: $draftSoundName,
+                draftSoundVolume: $draftSoundVolume,
+                draftTerminalApp: $draftTerminalApp,
+                draftDeleteClaudeSessionFiles: $draftDeleteClaudeSessionFiles,
+                soundOptions: soundOptions,
+                onSave: saveDrafts,
+                onClose: { showSettings = false }
+            )
+            .environmentObject(debugLogStore)
+            .environmentObject(toastCenter)
+        }
+        .overlay { sessionDetailOverlay }
+        .overlay(alignment: .bottom) { toastOverlay }
+        .overlay(alignment: .bottomLeading) { settingsButton }
+        .overlay(alignment: .bottomTrailing) { darkModeButton }
+    }
+
+    /// 선택된 탭에 따른 메인 콘텐츠
+    @ViewBuilder
+    var mainContent: some View {
+        switch selectedTab {
+        case .sessions:
+            SessionView(selectedSession: $selectedSession)
+        case .statistics:
+            StatisticsView()
+        }
     }
 
     @ViewBuilder

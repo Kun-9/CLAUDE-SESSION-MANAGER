@@ -8,22 +8,31 @@ struct TokenUsage: Codable, Equatable {
     let cacheReadInputTokens: Int?
 
     /// 총 입력 토큰 (캐시 포함)
+    /// 계산식: inputTokens + cacheCreationInputTokens + cacheReadInputTokens
     var totalInputTokens: Int {
         inputTokens + (cacheCreationInputTokens ?? 0) + (cacheReadInputTokens ?? 0)
     }
 
-    /// 포맷된 요약 문자열 (예: "↓1.2K ↑350 💾5K")
-    var formattedSummary: String {
-        var parts: [String] = []
-        parts.append("↓\(formatTokenCount(totalInputTokens))")
-        parts.append("↑\(formatTokenCount(outputTokens))")
-        if let cacheRead = cacheReadInputTokens, cacheRead > 0 {
-            parts.append("💾\(formatTokenCount(cacheRead))")
-        }
-        return parts.joined(separator: " ")
+    /// 총 토큰 수
+    /// 계산식: totalInputTokens + outputTokens
+    var totalTokens: Int {
+        totalInputTokens + outputTokens
     }
 
-    private func formatTokenCount(_ count: Int) -> String {
+    /// 실제 토큰 사용량 (비용 기준)
+    /// 계산식: Input×1 + CacheWrite×1.25 + CacheRead×0.1 + Output
+    var actualTokenUsage: Double {
+        Double(inputTokens) + Double(cacheCreationInputTokens ?? 0) * 1.25 + Double(cacheReadInputTokens ?? 0) * 0.1 + Double(outputTokens)
+    }
+
+    /// 포맷된 요약 문자열 (예: "1.2K · 850")
+    /// - 왼쪽: 총 토큰, 오른쪽: 실제 사용량
+    var formattedSummary: String {
+        "\(Self.formatTokenCount(totalTokens)) · \(Self.formatTokenCount(Int(actualTokenUsage)))"
+    }
+
+    /// 토큰 수 포맷 (K 단위 변환)
+    static func formatTokenCount(_ count: Int) -> String {
         if count >= 1000 {
             let value = Double(count) / 1000.0
             if value >= 10 {
@@ -33,6 +42,24 @@ struct TokenUsage: Codable, Equatable {
         }
         return "\(count)"
     }
+
+    /// 다른 TokenUsage와 합산
+    func adding(_ other: TokenUsage) -> TokenUsage {
+        TokenUsage(
+            inputTokens: inputTokens + other.inputTokens,
+            outputTokens: outputTokens + other.outputTokens,
+            cacheCreationInputTokens: (cacheCreationInputTokens ?? 0) + (other.cacheCreationInputTokens ?? 0),
+            cacheReadInputTokens: (cacheReadInputTokens ?? 0) + (other.cacheReadInputTokens ?? 0)
+        )
+    }
+
+    /// 빈 TokenUsage
+    static let zero = TokenUsage(
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0
+    )
 }
 
 struct TranscriptEntry: Identifiable, Codable {
