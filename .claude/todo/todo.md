@@ -249,21 +249,29 @@
   - 관련 파일: `ClaudeSessionManager/Views/Session/SessionCardView.swift`
   - 완료일: 2026-01-16
 
-- [ ] 권한/선택 요청 버튼 디자인 개선
+- [x] 권한/선택 요청 버튼 디자인 개선
   - 설명: 권한 요청과 선택 요청의 버튼 디자인 및 라벨 일관성 문제 해결
+  - 해결: 모든 터미널 위임 버튼을 "Ask in Terminal"로 통일, Allow 버튼 민트 계열 색상 적용, 모든 TextField에 Enter 제출 기능 구현
   - 비용: S (하위 합산)
   - 영향도: Mid
   - 관련 파일: `ClaudeSessionManager/Views/Components/PermissionRequestView.swift`
+  - 완료일: 2026-01-17
   - 하위 항목:
-    - [ ] 터미널 위임 버튼 라벨 통일
+    - [x] 터미널 위임 버튼 라벨 통일
       - 설명: 현재 권한 요청은 "Ask", 선택 요청은 "터미널에서"/"터미널"로 표시됨. 같은 기능(Claude Code 터미널로 위임)인데 라벨이 달라 혼란스러움. 일관된 라벨로 통일 필요 (예: 모두 "터미널에서" 또는 "Ask in Terminal")
+      - 해결: 모든 터미널 위임 버튼을 "Ask in Terminal"로 통일
       - 비용: XS
-    - [ ] ALLOW/DENY/ASK 버튼 스타일 개선
+      - 완료일: 2026-01-17
+    - [x] ALLOW/DENY/ASK 버튼 스타일 개선
       - 설명: 버튼 색상, 크기, 아이콘 등 디자인 요소 검토 및 개선. 현재 Allow=초록, Deny=빨강은 직관적이나 Ask 버튼이 시각적으로 약함
+      - 해결: Allow 버튼에 세련된 민트 계열 색상 적용, 전체적으로 일관된 스타일 유지
       - 비용: XS
-    - [ ] 선택 화면 Enter 제출 기능
+      - 완료일: 2026-01-17
+    - [x] 선택 화면 Enter 제출 기능
       - 설명: 권한/선택 요청 화면에서 "Other" TextField 입력 후 Enter 키로 제출 가능하도록 개선. 버튼 활성화 조건(canSubmitWithAnswers)과 동일한 조건에서만 제출
+      - 해결: InlineQuestionSelectionView, QuestionSelectionView, GridQuestionPopoverContent의 모든 TextField에 onSubmit 구현
       - 비용: S
+      - 완료일: 2026-01-17
 
 ## 알림
 
@@ -331,10 +339,15 @@
       - 비용: S
       - 관련 파일: `DebugLogStore.swift`, `DebugView.swift`
       - 완료일: 2026-01-17
-    - [ ] 세션 파일 삭제 기능 설정 옵션화
+    - [x] 세션 파일 삭제 기능 설정 옵션화
       - 설명: `ClaudeSessionService.deleteSession()` 호출을 설정에서 on/off 가능하게. Claude Code 내부 경로 규칙 변경 시 호환성 문제 대비
+      - 해결:
+        - `SettingsKeys.deleteClaudeSessionFiles` 설정 키 추가 (기본값: true)
+        - `SettingsStore.deleteClaudeSessionFilesEnabled()` getter 추가
+        - `SessionListViewModel.deleteSession()` 및 `SessionArchiveViewModel.deleteSession()`에서 설정 확인 후 삭제
       - 비용: S
-      - 관련 파일: `ClaudeSessionService.swift`, `SettingsStore.swift`, `SessionArchiveViewModel.swift`
+      - 관련 파일: `SettingsStore.swift`, `SessionListViewModel.swift`, `SessionArchiveViewModel.swift`
+      - 완료일: 2026-01-17
     - [ ] [고려] transcript 파일 의존 최소화
       - 설명: Stop 훅 시 transcript.jsonl 파싱 의존도 검토. 훅 페이로드 정보만 사용하거나 아카이빙을 선택적 기능으로 분리 가능성 검토
       - 비용: L (구조 변경 시)

@@ -20,6 +20,7 @@ enum SettingsKeys {
     static let sessionCollapsedSections = "session.collapsed.sections"
     static let favoriteSections = "session.favorite.sections"
     static let terminalApp = "terminal.app"
+    static let deleteClaudeSessionFiles = "session.delete.claudeFiles"
 }
 
 /// 지원하는 터미널 앱
@@ -69,8 +70,22 @@ enum SettingsStore {
                 SettingsKeys.sessionCollapsedSections: "[]",
                 SettingsKeys.favoriteSections: "[]",
                 SettingsKeys.terminalApp: TerminalApp.iTerm2.rawValue,
+                SettingsKeys.deleteClaudeSessionFiles: true,
             ]
         )
+    }
+
+    // MARK: - Session
+
+    /// 세션 삭제 시 Claude Code 세션 파일도 함께 삭제할지 여부
+    static func deleteClaudeSessionFilesEnabled() -> Bool {
+        defaults.bool(forKey: SettingsKeys.deleteClaudeSessionFiles)
+    }
+
+    /// 세션 파일 삭제 설정 저장
+    static func setDeleteClaudeSessionFiles(_ enabled: Bool) {
+        defaults.set(enabled, forKey: SettingsKeys.deleteClaudeSessionFiles)
+        defaults.synchronize()
     }
 
     // MARK: - Terminal

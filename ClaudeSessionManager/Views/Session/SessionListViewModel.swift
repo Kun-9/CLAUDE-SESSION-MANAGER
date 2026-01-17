@@ -121,9 +121,11 @@ final class SessionListViewModel: ObservableObject {
             .filter { $0.status != .normal }
     }
 
-    /// 세션 삭제 (Claude Code 세션 파일 + 아카이브 + 세션 레코드 모두 삭제)
+    /// 세션 삭제 (아카이브 + 세션 레코드 삭제, Claude Code 파일은 설정에 따라)
     func deleteSession(_ session: SessionItem) {
-        ClaudeSessionService.deleteSession(sessionId: session.id, location: session.location)
+        if SettingsStore.deleteClaudeSessionFilesEnabled() {
+            ClaudeSessionService.deleteSession(sessionId: session.id, location: session.location)
+        }
         TranscriptArchiveStore.delete(sessionId: session.id)
         SessionStore.deleteSession(sessionId: session.id)
         loadSessions()
