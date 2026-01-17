@@ -308,10 +308,17 @@
   - 비용: M (하위 합산)
   - 영향도: Mid
   - 하위 항목:
-    - [ ] 상태 enum 통합 (SessionRecordStatus → SessionStatus)
+    - [x] 상태 enum 통합 (SessionRecordStatus → SessionStatus)
       - 설명: 동일 케이스 중복 정의 제거. `SessionStatus`에 `Codable` 추가, `SessionRecordStatus` 삭제
+      - 해결:
+        - `SessionStatus`를 `Models/SessionStatus.swift`로 분리하여 공용 타입으로 생성
+        - `SessionStore.SessionRecordStatus` 삭제
+        - `SessionStore.SessionRecord.status` 타입을 `SessionStatus`로 변경
+        - `SessionItem.init(recordStatus:)` 변환 extension 삭제
+        - `SessionListViewModel.changeSessionStatus()`에서 변환 코드 제거
       - 비용: S
-      - 관련 파일: `SessionStore.swift`, `SessionModels.swift`, `SessionListViewModel.swift`
+      - 관련 파일: `Models/SessionStatus.swift` (신규), `SessionStore.swift`, `SessionModels.swift`, `SessionListViewModel.swift`
+      - 완료일: 2026-01-17
     - [ ] .permission → .finished 아카이브 리로드 보장
       - 설명: `handleSessionUpdate()` 조건을 `.running || .permission`으로 개선
       - 비용: XS

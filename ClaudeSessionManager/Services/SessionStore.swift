@@ -1,3 +1,8 @@
+// MARK: - 파일 설명
+// SessionStore: 세션 메타데이터 CRUD 및 상태 관리
+// - UserDefaults 기반 영속화
+// - DistributedNotificationCenter로 변경 알림 전파
+
 import Foundation
 
 enum SessionStore {
@@ -12,21 +17,12 @@ enum SessionStore {
         let name: String
         let detail: String
         let location: String?
-        let status: SessionRecordStatus
+        let status: SessionStatus
         let updatedAt: TimeInterval
         let startedAt: TimeInterval?  // 작업 시작 시간 (running 상태일 때만 유효)
         let duration: TimeInterval?   // 마지막 작업 소요 시간 (완료 시 계산)
         let lastPrompt: String?
         let lastResponse: String?
-    }
-
-    // 세션 상태 코드
-    enum SessionRecordStatus: String, Codable {
-        case running
-        case finished
-        case permission
-        case normal
-        case ended
     }
 
     // 저장된 세션 목록 로드
@@ -107,7 +103,7 @@ enum SessionStore {
     ///   - reorder: true면 같은 location 그룹 내 상위로 이동, false면 순서 유지
     static func updateSessionStatus(
         sessionId: String?,
-        status: SessionRecordStatus,
+        status: SessionStatus,
         prompt: String? = nil,
         reorder: Bool = true,
         resetDuration: Bool = false

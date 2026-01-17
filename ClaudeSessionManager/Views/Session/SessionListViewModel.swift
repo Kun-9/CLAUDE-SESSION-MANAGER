@@ -132,8 +132,7 @@ final class SessionListViewModel: ObservableObject {
     /// 세션 상태 수동 변경 (완료/종료만 가능, 진행중은 HOOK 전용)
     func changeSessionStatus(_ session: SessionItem, to status: SessionStatus) {
         guard status == .finished || status == .ended else { return }
-        let recordStatus = SessionStore.SessionRecordStatus(rawValue: status.rawValue) ?? .finished
-        SessionStore.updateSessionStatus(sessionId: session.id, status: recordStatus, reorder: false)
+        SessionStore.updateSessionStatus(sessionId: session.id, status: status, reorder: false)
         loadSessions()
     }
 
