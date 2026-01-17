@@ -38,34 +38,22 @@ struct SidebarView: View {
     private func sidebarButton(for tab: SidebarTab) -> some View {
         let isSelected = selectedTab == tab
         let isHovered = hoveredTab == tab
-        let isStatistics = tab == .statistics
 
         Button {
-            if !isStatistics {
-                selectedTab = tab
-            }
+            selectedTab = tab
         } label: {
             Image(systemName: isSelected ? tab.selectedIcon : tab.icon)
                 .font(.system(size: iconSize, weight: .medium))
-                .foregroundStyle(buttonForegroundStyle(isSelected: isSelected, isDisabled: isStatistics))
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                 .frame(width: buttonSize, height: buttonSize)
                 .background(buttonBackground(isSelected: isSelected, isHovered: isHovered))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(isStatistics)
         .onHover { hovering in
             hoveredTab = hovering ? tab : nil
         }
-        .help(isStatistics ? "\(tab.rawValue) (준비 중)" : tab.rawValue)
-    }
-
-    /// 버튼 전경색 스타일
-    private func buttonForegroundStyle(isSelected: Bool, isDisabled: Bool) -> some ShapeStyle {
-        if isDisabled {
-            return Color.secondary.opacity(0.4)
-        }
-        return isSelected ? Color.accentColor : Color.secondary
+        .help(tab.rawValue)
     }
 
     /// 버튼 배경

@@ -341,13 +341,26 @@
       - 비용: S
       - 완료일: 2026-01-17
 
+- [ ] 프롬프트별 합산 토큰 표시
+  - 설명: 최종 응답 상세보기에서 해당 프롬프트(user 입력)에 대한 모든 중간 응답 토큰을 합산하여 표시. 현재는 각 응답마다 개별 토큰만 표시되어 전체 비용 파악이 어려움
+  - 배경:
+    - 각 API 호출은 고유한 `requestId`를 가지며 별도의 토큰 사용량이 있음
+    - 예: Read tool(50) + Edit tool(60) + 최종 응답(30) = 총 140 토큰
+    - 일반 모드에서는 최종 응답(30)만 보이지만, 실제 비용은 140 토큰
+    - 참고: `.claude/doc-local.md`의 "토큰 사용량 계산 로직" 섹션
+  - 비용: S
+  - 영향도: Mid
+  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionDetailSheet.swift`, `ClaudeSessionManager/Views/Session/MessageBubble/MessageBubbleView.swift`, `ClaudeSessionManager/Services/Transcript/TranscriptFilter.swift`
+
 ## 앱 구조
 
-- [ ] 사이드바 탭 그룹 추가
+- [x] 사이드바 탭 그룹 추가
   - 설명: 왼쪽에 접기 가능한 탭 그룹 생성. 현재 세션 목록을 "세션" 탭으로, 새로운 "통계" 탭 추가
+  - 해결: Xcode/Finder 스타일 아이콘 사이드바 + 통계 탭 구현 완료
   - 비용: L (하위 합산)
   - 영향도: High
-  - 관련 파일: `ClaudeSessionManager/Views/ContentView.swift`, `ClaudeSessionManager/Views/Sidebar/` (신규 폴더)
+  - 관련 파일: `ClaudeSessionManager/Views/ContentView.swift`, `ClaudeSessionManager/Views/Sidebar/`
+  - 완료일: 2026-01-17
   - 하위 항목:
     - [x] 사이드바 컨테이너 뷰 구현
       - 설명: Xcode/Finder 스타일의 아이콘 전용 사이드바. 마우스 오버 시 툴팁 표시
@@ -359,15 +372,21 @@
       - 비용: M
       - 관련 파일: `Views/Sidebar/SidebarTab.swift`, `Views/Sidebar/SidebarView.swift`, `Views/ContentView.swift`
       - 완료일: 2026-01-17
-    - [ ] 통계 탭 설계 및 구현
+    - [x] 통계 탭 설계 및 구현
       - 설명: 토큰 사용량 통계를 주로 다룸. 표시할 정보 및 UI 구성 설계 필요
+      - 해결:
+        - `StatisticsModels.swift` 생성 (ProjectUsage, TotalStatistics 구조체)
+        - `StatisticsService.swift` 생성 (세션별/프로젝트별 토큰 집계)
+        - `StatisticsViewModel.swift` 생성 (통계 뷰 상태 관리, 세션 변경 알림 구독)
+        - `StatisticsView.swift` 생성 (전체 요약 카드 + 프로젝트별 사용량 목록)
+        - ContentView에서 통계 탭 활성화
+      - 구현 내용:
+        - 총 토큰 사용량 (입력/출력/캐시 효율)
+        - 프로젝트별 토큰 사용량 (토큰 내림차순 정렬)
+        - 세션/프로젝트 개수 표시
       - 비용: L
-      - 설계 필요:
-        - 기간별 토큰 사용량 (일/주/월)
-        - 프로젝트별 토큰 사용량
-        - 세션별 토큰 사용량 순위
-        - 캐시 효율 (cache hit rate)
-        - 비용 추정 (선택적)
+      - 관련 파일: `Models/Statistics/StatisticsModels.swift`, `Services/StatisticsService.swift`, `Views/Statistics/StatisticsViewModel.swift`, `Views/Statistics/StatisticsView.swift`
+      - 완료일: 2026-01-17
 
 ## 리팩토링
 

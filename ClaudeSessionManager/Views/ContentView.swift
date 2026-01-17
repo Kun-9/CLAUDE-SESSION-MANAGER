@@ -134,25 +134,8 @@ private extension ContentView {
         case .sessions:
             SessionView(selectedSession: $selectedSession)
         case .statistics:
-            // 통계 탭 (준비 중)
-            statisticsPlaceholder
+            StatisticsView()
         }
-    }
-
-    /// 통계 탭 플레이스홀더
-    var statisticsPlaceholder: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "chart.bar")
-                .font(.system(size: 48))
-                .foregroundStyle(.tertiary)
-            Text("통계 기능 준비 중")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            Text("토큰 사용량 및 세션 통계를 제공할 예정입니다.")
-                .font(.subheadline)
-                .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
