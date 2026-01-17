@@ -1,4 +1,3 @@
-import Combine
 import SwiftUI
 
 private let debugTimestampFormatter: DateFormatter = {
@@ -11,7 +10,6 @@ struct DebugView: View {
     @EnvironmentObject private var debugLogStore: DebugLogStore
     @StateObject private var viewModel = DebugViewModel()
     @State private var expandedPayloadIds: Set<UUID> = []
-    private let refreshTimer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ScrollView {
@@ -54,10 +52,6 @@ struct DebugView: View {
             debugLogStore.reload()
         }
         .onChange(of: viewModel.debugEnabled) { _, _ in
-            debugLogStore.reload()
-        }
-        .onReceive(refreshTimer) { _ in
-            guard viewModel.debugEnabled else { return }
             debugLogStore.reload()
         }
     }

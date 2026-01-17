@@ -325,10 +325,12 @@
       - 비용: XS
       - 관련 파일: `SessionArchiveViewModel.swift:114-121`
       - 완료일: 2026-01-17
-    - [ ] DebugView 타이머 제거 → 이벤트 기반 갱신
+    - [x] DebugView 타이머 제거 → 이벤트 기반 갱신
       - 설명: 1초 폴링 대신 `sessionsDidChangeNotification` 구독으로 훅 이벤트 시에만 갱신
+      - 해결: DebugLogStore에 notification 구독 추가, DebugView에서 Timer.publish 및 onReceive 제거
       - 비용: S
-      - 관련 파일: `DebugView.swift:14,59-62`
+      - 관련 파일: `DebugLogStore.swift`, `DebugView.swift`
+      - 완료일: 2026-01-17
     - [ ] 세션 파일 삭제 기능 설정 옵션화
       - 설명: `ClaudeSessionService.deleteSession()` 호출을 설정에서 on/off 가능하게. Claude Code 내부 경로 규칙 변경 시 호환성 문제 대비
       - 비용: S
