@@ -111,8 +111,10 @@ final class SessionArchiveViewModel: ObservableObject {
         let previousStatus = currentSession?.status
         loadCurrentSession()
 
-        // .running -> .finished 전환 시 transcript 리로드 (아카이빙 완료 대기)
-        if previousStatus == .running, currentSession?.status != .running {
+        // 진행 상태(.running/.permission) → 완료(.finished) 전환 시 transcript 리로드
+        let wasActive = previousStatus == .running || previousStatus == .permission
+        let isNowFinished = currentSession?.status == .finished
+        if wasActive, isNowFinished {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
                 self?.load()
             }

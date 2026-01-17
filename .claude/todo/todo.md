@@ -319,10 +319,12 @@
       - 비용: S
       - 관련 파일: `Models/SessionStatus.swift` (신규), `SessionStore.swift`, `SessionModels.swift`, `SessionListViewModel.swift`
       - 완료일: 2026-01-17
-    - [ ] .permission → .finished 아카이브 리로드 보장
+    - [x] .permission → .finished 아카이브 리로드 보장
       - 설명: `handleSessionUpdate()` 조건을 `.running || .permission`으로 개선
+      - 해결: 진행 상태(.running/.permission) → 완료(.finished) 전환 시 transcript 리로드하도록 조건 수정
       - 비용: XS
-      - 관련 파일: `SessionArchiveViewModel.swift:114-119`
+      - 관련 파일: `SessionArchiveViewModel.swift:114-121`
+      - 완료일: 2026-01-17
     - [ ] DebugView 타이머 제거 → 이벤트 기반 갱신
       - 설명: 1초 폴링 대신 `sessionsDidChangeNotification` 구독으로 훅 이벤트 시에만 갱신
       - 비용: S
