@@ -88,10 +88,16 @@ struct SessionDetailSheet: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                if let archiveSizeText = viewModel.archiveSizeText {
-                    Text("아카이브 \(archiveSizeText)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                    if let archiveSizeText = viewModel.archiveSizeText {
+                        Text("아카이브 \(archiveSizeText)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    // 세션 전체 토큰 사용량
+                    if let totalUsage = viewModel.transcript?.totalUsage {
+                        TokenUsageBadge(usage: totalUsage)
+                    }
                 }
             }
             Spacer()

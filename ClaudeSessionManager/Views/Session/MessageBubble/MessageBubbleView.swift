@@ -60,7 +60,7 @@ struct MessageBubbleView: View {
 
     // MARK: - Subviews
 
-    /// 헤더 (배지 + 타임스탬프)
+    /// 헤더 (배지 + 타임스탬프 + 토큰)
     private var headerView: some View {
         HStack(spacing: 6) {
             if isUser {
@@ -68,9 +68,13 @@ struct MessageBubbleView: View {
                 timestampOrIndicator
                 MessageBubbleBadge(label: style.badgeLabel, color: style.badgeColor)
             } else {
-                // Assistant: 배지 -> 시간 (왼쪽 정렬)
+                // Assistant: 배지 -> 시간 -> 토큰 (왼쪽 정렬)
                 MessageBubbleBadge(label: style.badgeLabel, color: style.badgeColor)
                 timestampOrIndicator
+                // 토큰 사용량 표시 (Assistant만)
+                if let usage = entry.usage {
+                    TokenUsageBadge(usage: usage)
+                }
             }
         }
     }
@@ -138,5 +142,80 @@ struct MessageBubbleBadge: View {
                 Capsule(style: .continuous)
                     .fill(color.opacity(0.12))
             )
+    }
+}
+
+/// 토큰 사용량 배지 (말풍선 헤더용)
+struct TokenUsageBadge: View {
+    let usage: TokenUsage
+    @State private var isShowingDetail = false
+
+    var body: some View {
+        Text(usage.formattedSummary)
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.secondary.opacity(0.1))
+            )
+            .onTapGesture {
+                isShowingDetail.toggle()
+            }
+            .popover(isPresented: $isShowingDetail, arrowEdge: .bottom) {
+                TokenUsageDetailPopover(usage: usage)
+            }
+    }
+}
+
+/// 토큰 사용량 상세 팝오버
+private struct TokenUsageDetailPopover: View {
+    let usage: TokenUsage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Token Usage")
+                .font(.caption.bold())
+                .foregroundStyle(.primary)
+
+            Divider()
+
+            tokenRow(label: "Input", value: usage.inputTokens)
+            tokenRow(label: "Output", value: usage.outputTokens)
+
+            if let cacheCreation = usage.cacheCreationInputTokens, cacheCreation > 0 {
+                tokenRow(label: "Cache Created", value: cacheCreation)
+            }
+
+            if let cacheRead = usage.cacheReadInputTokens, cacheRead > 0 {
+                tokenRow(label: "Cache Read", value: cacheRead)
+            }
+
+            Divider()
+
+            tokenRow(label: "Total Input", value: usage.totalInputTokens, isBold: true)
+        }
+        .padding(12)
+        .frame(minWidth: 160)
+    }
+
+    @ViewBuilder
+    private func tokenRow(label: String, value: Int, isBold: Bool = false) -> some View {
+        HStack {
+            Text(label)
+                .font(isBold ? .caption.bold() : .caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(formatNumber(value))
+                .font(isBold ? .caption.bold().monospacedDigit() : .caption.monospacedDigit())
+                .foregroundStyle(isBold ? .primary : .secondary)
+        }
+    }
+
+    private func formatNumber(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 }

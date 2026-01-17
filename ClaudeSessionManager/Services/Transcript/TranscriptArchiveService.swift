@@ -85,6 +85,10 @@ enum TranscriptArchiveService {
         let isMeta = dict["isMeta"] as? Bool
         let messageContentIsString = (dict["message"] as? [String: Any])?["content"] is String
         let requestId = stringValue(dict["requestId"])
+
+        // Assistant 메시지에서 토큰 사용량 파싱
+        let usage = extractUsage(from: dict)
+
         return TranscriptEntry(
             role: role,
             text: text,
@@ -93,7 +97,31 @@ enum TranscriptArchiveService {
             messageRole: messageRole,
             isMeta: isMeta,
             messageContentIsString: messageContentIsString,
-            requestId: requestId
+            requestId: requestId,
+            usage: usage
+        )
+    }
+
+    // message.usage 객체에서 토큰 사용량 추출
+    private static func extractUsage(from dict: [String: Any]) -> TokenUsage? {
+        guard let message = dict["message"] as? [String: Any],
+              let usage = message["usage"] as? [String: Any] else {
+            return nil
+        }
+
+        guard let inputTokens = usage["input_tokens"] as? Int,
+              let outputTokens = usage["output_tokens"] as? Int else {
+            return nil
+        }
+
+        let cacheCreationInputTokens = usage["cache_creation_input_tokens"] as? Int
+        let cacheReadInputTokens = usage["cache_read_input_tokens"] as? Int
+
+        return TokenUsage(
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
+            cacheCreationInputTokens: cacheCreationInputTokens,
+            cacheReadInputTokens: cacheReadInputTokens
         )
     }
 
