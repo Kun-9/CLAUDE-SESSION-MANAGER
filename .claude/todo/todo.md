@@ -208,17 +208,14 @@
 
 ## 권한 요청 UI
 
-- [ ] [버그] 동시 권한 요청 시 일부만 처리되는 문제
+- [x] [버그] 동시 권한 요청 시 일부만 처리되는 문제
   - 설명: 같은 세션에서 여러 권한 요청(Glob, Bash 등)이 동시에 발생할 때, 앱에서 하나의 요청만 선택/처리하면 나머지 요청들이 UI에서 사라지거나 선택 불가 상태가 됨. 터미널에서는 첫 번째만 처리되고 나머지가 대기 상태로 남음
-  - 재현 시나리오:
-    1. Claude Code가 동시에 Glob + Bash 권한 요청 발생
-    2. 앱에서 첫 번째 요청(Glob)에 Allow 클릭
-    3. 두 번째 요청(Bash)이 UI에서 사라지거나 선택 불가
-    4. 터미널에서는 Bash가 대기 상태로 남음
-  - 원인 추정: 응답 전송 후 같은 sessionId의 모든 pending 요청을 삭제하거나, UI 갱신 시 이전 요청 목록을 덮어쓰는 문제로 추정
-  - 비용: M
+  - 원인: `handlePostToolUse()`에서 단일 도구 완료 시 해당 세션의 **모든** pending 요청을 삭제하여, 아직 처리되지 않은 다른 요청들도 함께 삭제됨
+  - 해결: `handlePostToolUse()`에서 `deletePendingRequests(forSessionId:)` 호출 제거. 각 요청은 앱에서 응답 시 개별적으로 삭제되거나, SessionEnd에서 일괄 삭제됨
+  - 비용: S (실제 변경 라인: 3줄 수정)
   - 영향도: High
-  - 관련 파일: `ClaudeSessionManager/Services/PermissionRequestStore.swift`, `ClaudeSessionManager/Views/Components/PermissionRequestView.swift`
+  - 관련 파일: `ClaudeSessionManager/Services/HookRunner.swift:233-241`
+  - 완료일: 2026-01-19
 
 - [ ] 권한 요청 시 도구 정보 표시 기능
   - 설명: 권한 요청(PermissionRequest) 시 어떤 도구(Read, Edit, Bash 등)의 권한인지 뱃지로 표시. 클릭 시 tool_input 등 상세 정보(파일 경로, 명령어 등)를 팝오버로 표시
@@ -249,22 +246,31 @@
 
 ## 성능 최적화
 
-- [ ] 긴 대화 세션 스크롤 성능 개선
+- [x] ✅ 긴 대화 세션 스크롤 성능 개선
   - 설명: 대화가 길어진 세션에서 스크롤 시 버벅임 발생. 특히 '상세보기' 토글 활성화 시 성능 저하가 심함
   - 원인 분석:
     - `MessageBubbleView.calculateCumulativeUsage()`가 매 렌더링마다 `allEntries` 순회
     - `MessageBubbleStyle.from()`에서 `TranscriptFilter.isIntermediateAssistant()` 반복 호출
     - 상세보기 활성화 시 표시되는 엔트리 수가 급증하여 문제 악화
+  - 해결:
+    - `TranscriptEntryCache` 구조체 추가 (isIntermediate, cumulativeUsage 캐시)
+    - `TranscriptFilter.buildCache(for:)` 메서드로 전체 entries에 대해 한 번만 O(n) 계산
+    - `SessionTranscriptSplitView`에서 캐시 생성 후 하위 뷰에 전달
+    - `MessageBubbleView`, `MessageBubbleStyle.from()` 캐시 사용으로 O(1) 조회
   - 비용: M
   - 영향도: High
-  - 관련 파일: `ClaudeSessionManager/Views/Session/MessageBubble/MessageBubbleView.swift`, `ClaudeSessionManager/Views/Session/SessionTranscriptSplitView.swift`
+  - 관련 파일: `TranscriptFilter.swift`, `MessageBubbleView.swift`, `MessageBubbleStyle.swift`, `SessionTranscriptSplitView.swift`
+  - 완료일: 2026-01-19
+  - 확인일: 2026-01-19
   - 하위 항목:
-    - [ ] cumulativeUsage 사전 계산 및 캐싱
+    - [x] cumulativeUsage 사전 계산 및 캐싱
       - 설명: `SessionTranscriptListView` 레벨에서 각 entry별 cumulativeUsage를 미리 계산하여 Dictionary로 전달. 개별 셀에서 매번 계산하지 않도록 개선
       - 비용: S
-    - [ ] isIntermediateAssistant 결과 캐싱
+      - 완료일: 2026-01-19
+    - [x] isIntermediateAssistant 결과 캐싱
       - 설명: `TranscriptFilter.isIntermediateAssistant()` 결과를 Dictionary로 캐싱. entries가 변경될 때만 재계산
       - 비용: S
+      - 완료일: 2026-01-19
     - [ ] [선택] 가상화(Virtualization) 강화 검토
       - 설명: LazyVStack이 적용되어 있지만, 복잡한 뷰 재사용 시 성능 이슈 여부 확인. 필요시 추가 최적화
       - 비용: S
@@ -365,16 +371,19 @@
       - 비용: S
       - 완료일: 2026-01-17
 
-- [ ] 프롬프트별 합산 토큰 표시
+- [x] ✅ 프롬프트별 합산 토큰 표시
   - 설명: 최종 응답 상세보기에서 해당 프롬프트(user 입력)에 대한 모든 중간 응답 토큰을 합산하여 표시. 현재는 각 응답마다 개별 토큰만 표시되어 전체 비용 파악이 어려움
-  - 배경:
-    - 각 API 호출은 고유한 `requestId`를 가지며 별도의 토큰 사용량이 있음
-    - 예: Read tool(50) + Edit tool(60) + 최종 응답(30) = 총 140 토큰
-    - 일반 모드에서는 최종 응답(30)만 보이지만, 실제 비용은 140 토큰
-    - 참고: `.claude/doc-local.md`의 "토큰 사용량 계산 로직" 섹션
+  - 해결:
+    - `TranscriptFilter.buildCache(for:)`에서 프롬프트 그룹별 누적 토큰 사전 계산
+    - `TranscriptEntryCache.cumulativeUsage`에 최종 응답별 누적 토큰 저장
+    - `TokenUsageBadge`에 `cumulativeUsage` 파라미터 추가
+    - 최종 응답에만 `(Σ총합 · 실제)` 형식으로 보라색 누적 토큰 표시
+    - 팝오버에 "Σ Total", "Σ Actual" 행 추가
   - 비용: S
   - 영향도: Mid
-  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionDetailSheet.swift`, `ClaudeSessionManager/Views/Session/MessageBubble/MessageBubbleView.swift`, `ClaudeSessionManager/Services/Transcript/TranscriptFilter.swift`
+  - 관련 파일: `TranscriptFilter.swift`, `MessageBubbleView.swift`
+  - 완료일: 2026-01-19
+  - 확인일: 2026-01-19
 
 ## 앱 구조
 
