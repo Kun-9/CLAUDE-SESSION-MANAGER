@@ -103,11 +103,43 @@ enum MessageBubbleStyle {
 
     // MARK: - Factory
 
-    /// TranscriptEntry에서 스타일 결정
+    /// TranscriptEntry에서 스타일 결정 (캐시 사용)
+    /// - Parameters:
+    ///   - entry: 대상 엔트리
+    ///   - entryCache: 사전 계산된 엔트리 메타데이터 캐시
+    ///   - showDetail: 상세보기 모드 여부
+    /// - Note: 성능 최적화를 위해 캐시된 값 사용. 목록 렌더링에서는 이 메서드 사용 권장
+    static func from(
+        entry: TranscriptEntry,
+        entryCache: TranscriptEntryCache,
+        showDetail: Bool
+    ) -> MessageBubbleStyle {
+        switch entry.role {
+        case .user:
+            // 상세보기 모드에서 시스템 주입 메시지 구분
+            if showDetail && !TranscriptFilter.isDirectUserInput(entry) {
+                return .userDetail
+            }
+            return .user
+
+        case .assistant:
+            // 상세보기 모드에서 중간 응답 구분 (캐시 사용)
+            if showDetail && (entryCache.isIntermediate[entry.id] ?? false) {
+                return .assistantDetail
+            }
+            return .assistant
+
+        case .system, .unknown:
+            return .system
+        }
+    }
+
+    /// TranscriptEntry에서 스타일 결정 (캐시 없음, 단일 항목용)
     /// - Parameters:
     ///   - entry: 대상 엔트리
     ///   - allEntries: 전체 엔트리 (중간 응답 판별용)
     ///   - showDetail: 상세보기 모드 여부
+    /// - Note: 단일 항목 조회 시에만 사용. 목록 렌더링에서는 캐시 버전 사용 권장
     static func from(
         entry: TranscriptEntry,
         allEntries: [TranscriptEntry],
