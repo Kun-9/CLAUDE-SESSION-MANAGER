@@ -5,6 +5,53 @@
 
 import Foundation
 
+/// 도구 입력 정보 (권한 요청 시 표시용)
+struct PermissionToolInput: Codable {
+    let command: String?      // Bash
+    let file_path: String?    // Read, Edit, Write
+    let pattern: String?      // Glob, Grep
+    let path: String?         // Glob, Grep
+    let url: String?          // WebFetch
+    let old_string: String?   // Edit (변경 전)
+    let new_string: String?   // Edit (변경 후)
+    let content: String?      // Write (작성할 내용)
+
+    /// 도구별 요약 정보 반환
+    func summary(for toolName: String) -> String? {
+        switch toolName {
+        case "Bash":
+            return command.map { "$ \($0.prefix(100))" }
+        case "Read", "Edit", "Write":
+            return file_path
+        case "Glob", "Grep":
+            if let pattern = pattern {
+                let pathStr = path ?? "."
+                return "\(pattern) in \(pathStr)"
+            }
+            return nil
+        case "WebFetch":
+            return url
+        default:
+            return nil
+        }
+    }
+
+    /// Edit 도구의 변경 내용이 있는지
+    var hasEditDiff: Bool {
+        old_string != nil || new_string != nil
+    }
+
+    /// Write 도구의 내용이 있는지
+    var hasWriteContent: Bool {
+        content != nil && !content!.isEmpty
+    }
+
+    /// Write 내용 줄 수
+    var writeLineCount: Int {
+        content?.components(separatedBy: "\n").count ?? 0
+    }
+}
+
 /// 권한 요청 정보
 struct PermissionRequest: Codable, Identifiable {
     let id: String
@@ -14,6 +61,7 @@ struct PermissionRequest: Codable, Identifiable {
     let cwd: String?
     let createdAt: TimeInterval
     let questions: [PermissionQuestion]?
+    let toolInput: PermissionToolInput?  // 도구별 상세 정보 (파일 경로, 명령어 등)
 
     /// 선택지가 있는 질문인지 여부
     var hasQuestions: Bool {
@@ -152,7 +200,8 @@ enum PermissionRequestStore {
         sessionName: String? = nil,
         toolName: String?,
         cwd: String?,
-        questions: [PermissionQuestion]? = nil
+        questions: [PermissionQuestion]? = nil,
+        toolInput: PermissionToolInput? = nil
     ) -> String {
         ensureDirectories()
 
@@ -167,7 +216,8 @@ enum PermissionRequestStore {
             toolName: toolName ?? "Unknown",
             cwd: cwd,
             createdAt: Date().timeIntervalSince1970,
-            questions: questions
+            questions: questions,
+            toolInput: toolInput
         )
 
         let filePath = pendingDirectory.appendingPathComponent("\(requestId).json")

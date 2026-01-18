@@ -15,6 +15,30 @@ struct HookEvent: Decodable {
 
 struct ToolInput: Codable {
     let questions: [ToolQuestion]?
+
+    // 도구별 상세 정보 (Bash, Read, Edit, Write, Glob, Grep 등)
+    let command: String?      // Bash
+    let file_path: String?    // Read, Edit, Write
+    let pattern: String?      // Glob, Grep
+    let path: String?         // Glob, Grep
+    let url: String?          // WebFetch
+    let old_string: String?   // Edit (변경 전)
+    let new_string: String?   // Edit (변경 후)
+    let content: String?      // Write (작성할 내용)
+
+    /// PermissionToolInput으로 변환
+    func toPermissionToolInput() -> PermissionToolInput {
+        PermissionToolInput(
+            command: command,
+            file_path: file_path,
+            pattern: pattern,
+            path: path,
+            url: url,
+            old_string: old_string,
+            new_string: new_string,
+            content: content
+        )
+    }
 }
 
 struct ToolQuestion: Codable, Identifiable {
@@ -167,12 +191,16 @@ enum HookRunner {
             )
         }
 
+        // tool_input을 PermissionToolInput으로 변환
+        let toolInput = event.tool_input?.toPermissionToolInput()
+
         // 1. 요청 정보 저장 (앱이 읽을 수 있도록)
         let requestId = PermissionRequestStore.savePendingRequest(
             sessionId: event.session_id,
             toolName: event.tool_name,
             cwd: event.cwd,
-            questions: questions
+            questions: questions,
+            toolInput: toolInput
         )
 
         // 2. 알림 전송
@@ -235,10 +263,9 @@ enum HookRunner {
             sessionId: event.session_id,
             status: .running
         )
-
-        // 터미널에서 직접 처리된 경우 pending 권한 요청 삭제
-        // (앱에서 응답하지 않았지만 Claude Code가 자체 UI로 처리 완료)
-        PermissionRequestStore.deletePendingRequests(forSessionId: event.session_id)
+        // 주의: 여기서 deletePendingRequests를 호출하면 안 됨
+        // PostToolUse는 단일 도구 완료 시점이며, 동시에 여러 권한 요청이 있을 수 있음
+        // 각 요청은 앱에서 응답 시 개별적으로 삭제되거나, SessionEnd에서 일괄 삭제됨
     }
 
     private static func handleSessionEnd(_ event: HookEvent) {

@@ -103,6 +103,186 @@ final class PermissionRequestViewModel: ObservableObject {
     }
 }
 
+// MARK: - ToolBadgeView
+
+/// 도구 이름에 따른 색상 뱃지
+private struct ToolBadgeView: View {
+    let toolName: String
+
+    private var badgeColor: Color {
+        switch toolName {
+        case "Read":
+            return .blue
+        case "Edit", "Write":
+            return .orange
+        case "Bash":
+            return .purple
+        case "Glob", "Grep":
+            return .green
+        case "WebFetch", "WebSearch":
+            return .cyan
+        case "Task":
+            return .indigo
+        default:
+            return .gray
+        }
+    }
+
+    var body: some View {
+        Text(toolName)
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(badgeColor.opacity(0.15)))
+            .foregroundStyle(badgeColor)
+    }
+}
+
+/// 도구 이름에 따른 아이콘 반환
+private func toolIcon(for toolName: String) -> String {
+    switch toolName {
+    case "Read":
+        return "doc.text"
+    case "Edit":
+        return "pencil"
+    case "Write":
+        return "doc.badge.plus"
+    case "Bash":
+        return "terminal"
+    case "Glob":
+        return "folder.badge.questionmark"
+    case "Grep":
+        return "magnifyingglass"
+    case "WebFetch":
+        return "globe"
+    case "WebSearch":
+        return "magnifyingglass.circle"
+    case "Task":
+        return "checklist"
+    default:
+        return "wrench"
+    }
+}
+
+// MARK: - ToolDetailView
+
+/// 도구 상세 정보 표시 (Edit diff, Write 미리보기)
+private struct ToolDetailView: View {
+    let toolName: String
+    let toolInput: PermissionToolInput?
+
+    @State private var isExpanded: Bool = false
+
+    var body: some View {
+        if let input = toolInput {
+            VStack(alignment: .leading, spacing: 6) {
+                // Edit diff
+                if toolName == "Edit", input.hasEditDiff {
+                    editDiffView(oldString: input.old_string, newString: input.new_string)
+                }
+
+                // Write 미리보기
+                if toolName == "Write", input.hasWriteContent {
+                    writePreviewView(content: input.content!, lineCount: input.writeLineCount)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func editDiffView(oldString: String?, newString: String?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            // 헤더
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                    Text("변경 내용")
+                        .font(.caption.weight(.medium))
+                    Spacer()
+                }
+                .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 2) {
+                    // 삭제되는 내용
+                    if let old = oldString, !old.isEmpty {
+                        HStack(alignment: .top, spacing: 4) {
+                            Text("-")
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.red)
+                            Text(old.prefix(200) + (old.count > 200 ? "..." : ""))
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.red.opacity(0.8))
+                        }
+                        .padding(6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.red.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    }
+
+                    // 추가되는 내용
+                    if let new = newString, !new.isEmpty {
+                        HStack(alignment: .top, spacing: 4) {
+                            Text("+")
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.green)
+                            Text(new.prefix(200) + (new.count > 200 ? "..." : ""))
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.green.opacity(0.8))
+                        }
+                        .padding(6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.green.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func writePreviewView(content: String, lineCount: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            // 헤더
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                    Text("새 파일 생성")
+                        .font(.caption.weight(.medium))
+                    Text("(\(lineCount)줄)")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                }
+                .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                Text(content.prefix(300) + (content.count > 300 ? "\n..." : ""))
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.primary.opacity(0.8))
+                    .padding(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.blue.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+        }
+    }
+}
+
 // MARK: - PermissionRequestBannerView
 
 /// 권한 요청 배너 (메인 뷰 상단에 표시)
@@ -193,7 +373,7 @@ private struct PermissionRequestCard: View {
                     .foregroundStyle(request.hasQuestions ? .blue : .orange)
                     .font(.title3)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         Text(request.hasQuestions ? "선택 요청" : "권한 요청")
                             .font(.headline)
@@ -205,9 +385,19 @@ private struct PermissionRequestCard: View {
                             .background(Capsule().fill(Color.blue.opacity(0.15)))
                             .foregroundStyle(.blue)
                     }
-                    Text(request.toolName)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        // 도구 이름 뱃지
+                        ToolBadgeView(toolName: request.toolName)
+
+                        // 도구 상세 정보 (있을 경우)
+                        if let summary = request.toolInput?.summary(for: request.toolName) {
+                            Text(summary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
                 }
 
                 Spacer()
@@ -220,6 +410,10 @@ private struct PermissionRequestCard: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            // Edit diff / Write 미리보기
+            ToolDetailView(toolName: request.toolName, toolInput: request.toolInput)
+                .padding(.leading, 28)
 
             // 선택지 UI (questions가 있을 때)
             if let questions = request.questions, !questions.isEmpty {
@@ -392,20 +586,40 @@ struct InlinePermissionRequestView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // 헤더: 타입 + 도구명 + 타이머
-            HStack {
-                Image(systemName: request.hasQuestions ? "questionmark.circle.fill" : "exclamationmark.shield.fill")
-                    .foregroundStyle(request.hasQuestions ? .blue : .orange)
-                    .font(.subheadline)
+            // 헤더: 타입 + 도구명 + 도구 상세 정보
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: request.hasQuestions ? "questionmark.circle.fill" : "exclamationmark.shield.fill")
+                        .foregroundStyle(request.hasQuestions ? .blue : .orange)
+                        .font(.subheadline)
 
-                Text(request.hasQuestions ? "선택 요청" : "권한 요청")
-                    .font(.subheadline.weight(.medium))
+                    Text(request.hasQuestions ? "선택 요청" : "권한 요청")
+                        .font(.subheadline.weight(.medium))
 
-                Text("• \(request.toolName)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    // 도구 이름 뱃지
+                    ToolBadgeView(toolName: request.toolName)
 
-                Spacer()
+                    Spacer()
+                }
+
+                // 도구 상세 정보 (있을 경우)
+                if let summary = request.toolInput?.summary(for: request.toolName) {
+                    HStack(spacing: 4) {
+                        Image(systemName: toolIcon(for: request.toolName))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(summary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .padding(.leading, 20)
+                }
+
+                // Edit diff / Write 미리보기
+                ToolDetailView(toolName: request.toolName, toolInput: request.toolInput)
+                    .padding(.leading, 20)
             }
 
             // 선택지 UI (questions가 있을 때)
@@ -1067,9 +1281,17 @@ struct GridPermissionOverlay: View {
     @State private var isOtherSelected: [Int: Bool] = [:]
     @State private var customInputs: [Int: String] = [:]
     @State private var isExpanded: Bool = false
+    @State private var showDetailPopover: Bool = false  // diff/미리보기 팝오버
 
     /// 세련된 초록색 (민트 계열)
     private let allowColor = Color(red: 0.2, green: 0.72, blue: 0.5)
+
+    /// Edit/Write 상세 정보가 있는지
+    private var hasToolDetail: Bool {
+        guard let input = request.toolInput else { return false }
+        return (request.toolName == "Edit" && input.hasEditDiff) ||
+               (request.toolName == "Write" && input.hasWriteContent)
+    }
 
     private var canSubmit: Bool {
         guard let questions = request.questions, !questions.isEmpty else { return false }
@@ -1097,26 +1319,79 @@ struct GridPermissionOverlay: View {
         return result
     }
 
+    /// 뱃지 색상 (ToolBadgeView와 동일한 로직)
+    private var badgeColor: Color {
+        switch request.toolName {
+        case "Read":
+            return .blue
+        case "Edit", "Write":
+            return .orange
+        case "Bash":
+            return .purple
+        case "Glob", "Grep":
+            return .green
+        case "WebFetch", "WebSearch":
+            return .cyan
+        case "Task":
+            return .indigo
+        default:
+            return .gray
+        }
+    }
+
     var body: some View {
-        // 버튼 영역만 표시 (확장은 popover로 처리)
-        buttonBar
-            .background {
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0,
-                    bottomLeadingRadius: 10,
-                    bottomTrailingRadius: 10,
-                    topTrailingRadius: 0
-                )
-                .fill(Color.orange)
+        VStack(spacing: 0) {
+            // 도구 정보 헤더 (한 줄)
+            HStack(spacing: 4) {
+                // 도구 이름 뱃지
+                Text(request.toolName)
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(badgeColor))
+                    .foregroundStyle(.white)
+                    .fixedSize()
+
+                Spacer(minLength: 4)
+
+                // 상세 보기 버튼 (파일 경로, diff 등)
+                Button {
+                    showDetailPopover.toggle()
+                } label: {
+                    Image(systemName: "info.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .fixedSize()
+                .popover(isPresented: $showDetailPopover, arrowEdge: .top) {
+                    GridToolDetailPopover(toolName: request.toolName, toolInput: request.toolInput)
+                }
             }
-            .clipShape(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0,
-                    bottomLeadingRadius: 10,
-                    bottomTrailingRadius: 10,
-                    topTrailingRadius: 0
-                )
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4.5)
+            .background(Color.black.opacity(0.3))
+
+            // 버튼 영역
+            buttonBar
+        }
+        .background {
+            UnevenRoundedRectangle(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: 10,
+                bottomTrailingRadius: 10,
+                topTrailingRadius: 0
             )
+            .fill(request.hasQuestions ? Color.blue : Color.orange)
+        }
+        .clipShape(
+            UnevenRoundedRectangle(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: 10,
+                bottomTrailingRadius: 10,
+                topTrailingRadius: 0
+            )
+        )
     }
 
     // MARK: - 버튼 바
@@ -1223,6 +1498,384 @@ struct GridPermissionOverlay: View {
                 }
             )
         }
+    }
+}
+
+// MARK: - BashHighlightedText
+
+// TODO: 구문 강조 라이브러리로 대체 예정 (예: Splash, Highlightr 등)
+/// Bash 명령어 구문 강조 뷰
+private struct BashHighlightedText: View {
+    let command: String
+
+    var body: some View {
+        Text(highlightedCommand)
+            .font(.caption.monospaced())
+    }
+
+    /// 구문 강조된 AttributedString 생성
+    private var highlightedCommand: AttributedString {
+        var result = AttributedString()
+
+        // $ 프롬프트 추가
+        var prompt = AttributedString("$ ")
+        prompt.foregroundColor = .secondary
+        result.append(prompt)
+
+        let tokens = tokenize(command)
+        var isFirstWord = true
+
+        for token in tokens {
+            var attr = AttributedString(token.text)
+
+            switch token.type {
+            case .command:
+                attr.foregroundColor = .blue
+                attr.font = .caption.monospaced().weight(.semibold)
+            case .flag:
+                attr.foregroundColor = .orange
+            case .string:
+                attr.foregroundColor = .green
+            case .pipe, .redirect:
+                attr.foregroundColor = .purple
+                attr.font = .caption.monospaced().weight(.semibold)
+            case .comment:
+                attr.foregroundColor = .gray
+            case .space:
+                break  // 기본 색상
+            case .text:
+                if isFirstWord {
+                    attr.foregroundColor = .blue
+                    attr.font = .caption.monospaced().weight(.semibold)
+                }
+            }
+
+            if token.type != .space && token.type != .pipe && token.type != .redirect {
+                isFirstWord = false
+            }
+            if token.type == .pipe || token.type == .redirect {
+                isFirstWord = true  // 파이프/리다이렉트 후 다시 명령어
+            }
+
+            result.append(attr)
+        }
+
+        return result
+    }
+
+    private enum TokenType {
+        case command, flag, string, pipe, redirect, comment, space, text
+    }
+
+    private struct Token {
+        let text: String
+        let type: TokenType
+    }
+
+    /// 명령어를 토큰으로 분리
+    private func tokenize(_ cmd: String) -> [Token] {
+        var tokens: [Token] = []
+        var current = ""
+        var inString = false
+        var stringChar: Character = "\""
+        var i = cmd.startIndex
+
+        while i < cmd.endIndex {
+            let c = cmd[i]
+
+            // 문자열 처리
+            if inString {
+                current.append(c)
+                if c == stringChar {
+                    tokens.append(Token(text: current, type: .string))
+                    current = ""
+                    inString = false
+                }
+                i = cmd.index(after: i)
+                continue
+            }
+
+            // 문자열 시작
+            if c == "\"" || c == "'" {
+                if !current.isEmpty {
+                    tokens.append(classifyToken(current))
+                    current = ""
+                }
+                inString = true
+                stringChar = c
+                current.append(c)
+                i = cmd.index(after: i)
+                continue
+            }
+
+            // 공백
+            if c.isWhitespace {
+                if !current.isEmpty {
+                    tokens.append(classifyToken(current))
+                    current = ""
+                }
+                tokens.append(Token(text: String(c), type: .space))
+                i = cmd.index(after: i)
+                continue
+            }
+
+            // 파이프, 리다이렉트
+            if c == "|" {
+                if !current.isEmpty {
+                    tokens.append(classifyToken(current))
+                    current = ""
+                }
+                tokens.append(Token(text: "|", type: .pipe))
+                i = cmd.index(after: i)
+                continue
+            }
+
+            if c == ">" || c == "<" {
+                if !current.isEmpty {
+                    tokens.append(classifyToken(current))
+                    current = ""
+                }
+                // >> 처리
+                var redirectText = String(c)
+                let next = cmd.index(after: i)
+                if next < cmd.endIndex && cmd[next] == c {
+                    redirectText.append(c)
+                    i = next
+                }
+                tokens.append(Token(text: redirectText, type: .redirect))
+                i = cmd.index(after: i)
+                continue
+            }
+
+            // 주석
+            if c == "#" {
+                if !current.isEmpty {
+                    tokens.append(classifyToken(current))
+                    current = ""
+                }
+                // 나머지 전부 주석
+                let remaining = String(cmd[i...])
+                tokens.append(Token(text: remaining, type: .comment))
+                break
+            }
+
+            current.append(c)
+            i = cmd.index(after: i)
+        }
+
+        // 남은 토큰
+        if !current.isEmpty {
+            if inString {
+                tokens.append(Token(text: current, type: .string))
+            } else {
+                tokens.append(classifyToken(current))
+            }
+        }
+
+        return tokens
+    }
+
+    private func classifyToken(_ text: String) -> Token {
+        if text.hasPrefix("-") {
+            return Token(text: text, type: .flag)
+        }
+        return Token(text: text, type: .text)
+    }
+}
+
+// MARK: - DiffCodeBlock
+
+/// Diff 코드 블럭 (삭제/추가 표시)
+/// - 짧은 내용: 스크롤 없이 전체 표시
+/// - 긴 내용: 스크롤 가능
+private struct DiffCodeBlock: View {
+    let label: String
+    let text: String
+    let color: Color
+
+    /// 최대 높이 (스크롤 필요 시)
+    private let maxHeight: CGFloat = 100
+
+    /// 텍스트 줄 수
+    private var lineCount: Int {
+        text.components(separatedBy: "\n").count
+    }
+
+    /// 스크롤이 필요한지 (대략 5줄 이상이면 스크롤)
+    private var needsScroll: Bool {
+        lineCount > 5
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(color)
+
+            if needsScroll {
+                // 긴 내용: ScrollView 사용
+                ScrollView(.vertical) {
+                    codeText
+                }
+                .frame(maxHeight: maxHeight)
+                .background(color.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else {
+                // 짧은 내용: 스크롤 없이 표시
+                codeText
+                    .background(color.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+    }
+
+    private var codeText: some View {
+        Text(text)
+            .font(.caption.monospaced())
+            .foregroundStyle(color.opacity(0.9))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+    }
+}
+
+// MARK: - WriteCodeBlock
+
+/// Write 코드 블럭 (파일 내용 미리보기)
+private struct WriteCodeBlock: View {
+    let lineCount: Int
+    let content: String
+
+    /// 최대 높이
+    private let maxHeight: CGFloat = 200
+
+    /// 스크롤이 필요한지 (대략 10줄 이상이면 스크롤)
+    private var needsScroll: Bool {
+        lineCount > 10
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(lineCount)줄")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if needsScroll {
+                ScrollView(.vertical) {
+                    codeText
+                }
+                .frame(maxHeight: maxHeight)
+                .background(Color.blue.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else {
+                codeText
+                    .background(Color.blue.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+    }
+
+    private var codeText: some View {
+        Text(content)
+            .font(.caption.monospaced())
+            .foregroundStyle(.primary.opacity(0.9))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+    }
+}
+
+// MARK: - GridToolDetailPopover
+
+/// 격자용 도구 상세 정보 팝오버 (Edit diff, Write 미리보기)
+private struct GridToolDetailPopover: View {
+    let toolName: String
+    let toolInput: PermissionToolInput?
+
+    /// 도구 아이콘
+    private var toolIcon: String {
+        switch toolName {
+        case "Read": return "doc.text"
+        case "Edit": return "pencil.circle.fill"
+        case "Write": return "doc.badge.plus"
+        case "Bash": return "terminal"
+        case "Glob": return "folder.badge.questionmark"
+        case "Grep": return "magnifyingglass"
+        default: return "wrench"
+        }
+    }
+
+    /// 도구 색상
+    private var toolColor: Color {
+        switch toolName {
+        case "Read": return .blue
+        case "Edit": return .orange
+        case "Write": return .blue
+        case "Bash": return .purple
+        case "Glob", "Grep": return .green
+        default: return .gray
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // 헤더
+            HStack(spacing: 6) {
+                Image(systemName: toolIcon)
+                    .foregroundStyle(toolColor)
+                Text(toolName)
+                    .font(.headline)
+            }
+
+            // 파일 경로 (Bash 제외)
+            if toolName != "Bash", let summary = toolInput?.summary(for: toolName) {
+                HStack(spacing: 4) {
+                    Image(systemName: "folder")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+
+            Divider()
+
+            if let input = toolInput {
+                // Bash 명령어 (전체 표시 + 하이라이팅)
+                if toolName == "Bash", let command = input.command, !command.isEmpty {
+                    ScrollView(.vertical) {
+                        BashHighlightedText(command: command)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                    .frame(maxHeight: 150)
+                    .padding(8)
+                    .background(Color(NSColor.textBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+
+                // Edit diff
+                if toolName == "Edit", input.hasEditDiff {
+                    VStack(alignment: .leading, spacing: 6) {
+                        // 삭제되는 내용
+                        if let old = input.old_string, !old.isEmpty {
+                            DiffCodeBlock(label: "삭제:", text: old, color: .red)
+                        }
+
+                        // 추가되는 내용
+                        if let new = input.new_string, !new.isEmpty {
+                            DiffCodeBlock(label: "추가:", text: new, color: .green)
+                        }
+                    }
+                }
+
+                // Write 미리보기
+                if toolName == "Write", let content = input.content, !content.isEmpty {
+                    WriteCodeBlock(lineCount: input.writeLineCount, content: content)
+                }
+            }
+        }
+        .padding(14)
+        .frame(minWidth: 250, maxWidth: 500)
     }
 }
 
