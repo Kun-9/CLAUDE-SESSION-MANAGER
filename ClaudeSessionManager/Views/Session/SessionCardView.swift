@@ -140,11 +140,12 @@ struct SessionCardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             // 키워드/요약 (lastPrompt에서 추출)
+            // 권한 요청 상황에서는 한 줄로 표시 (권한 UI가 아래에 붙으므로)
             if let prompt = session.lastPrompt, !prompt.isEmpty {
                 Text(prompt)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(session.status == .permission ? 1 : 2)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
