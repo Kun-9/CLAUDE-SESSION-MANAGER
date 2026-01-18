@@ -79,25 +79,3 @@ struct SessionLabelEditPopover: View {
     }
 }
 
-// MARK: - 기존 Sheet 호환용 (deprecated)
-
-struct SessionLabelEditSheet: View {
-    let session: SessionItem
-    let onSave: (String) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        SessionLabelEditPopover(
-            session: session,
-            onSave: { newLabel in
-                onSave(newLabel)
-                dismiss()
-            },
-            onCancel: {
-                dismiss()
-            }
-        )
-        .padding(8)
-        .frame(width: 280)
-    }
-}
