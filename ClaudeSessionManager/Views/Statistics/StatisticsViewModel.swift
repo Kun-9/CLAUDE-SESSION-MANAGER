@@ -45,8 +45,8 @@ final class StatisticsViewModel: ObservableObject {
             forName: SessionStore.sessionsDidChangeNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
+        ) { _ in
+            Task { @MainActor [weak self] in
                 self?.loadStatistics()
             }
         }
@@ -58,7 +58,8 @@ final class StatisticsViewModel: ObservableObject {
         Task.detached(priority: .userInitiated) {
             let result = StatisticsService.calculateStatistics()
 
-            await MainActor.run {
+            await MainActor.run { [weak self] in
+                guard let self else { return }
                 self.totalStats = result.total
                 self.projectUsages = result.projects
                 self.isLoading = false
