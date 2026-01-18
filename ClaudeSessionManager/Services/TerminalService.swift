@@ -129,8 +129,8 @@ enum TerminalService {
         showConfirmation(for: action) { confirmed in
             guard confirmed else { return }
 
-            let safeSessionId = escapeForShellSingleQuote(sessionId)
-            let cdCommand = location.map { "cd '\(escapeForShellSingleQuote($0))' && " } ?? ""
+            let safeSessionId = StringEscaping.escapeForShellSingleQuote(sessionId)
+            let cdCommand = location.map { "cd '\(StringEscaping.escapeForShellSingleQuote($0))' && " } ?? ""
             let resumeCommand = "\(cdCommand)claude --resume '\(safeSessionId)'"
 
             executeInNewWindow(command: resumeCommand)
@@ -143,7 +143,7 @@ enum TerminalService {
         showConfirmation(for: action) { confirmed in
             guard confirmed else { return }
 
-            let cdCommand = location.map { "cd '\(escapeForShellSingleQuote($0))' && " } ?? ""
+            let cdCommand = location.map { "cd '\(StringEscaping.escapeForShellSingleQuote($0))' && " } ?? ""
             let command = "\(cdCommand)claude"
 
             executeInNewWindow(command: command)
@@ -158,7 +158,7 @@ enum TerminalService {
         showConfirmation(for: action) { confirmed in
             guard confirmed else { return }
 
-            let command = "cd '\(escapeForShellSingleQuote(location))'"
+            let command = "cd '\(StringEscaping.escapeForShellSingleQuote(location))'"
             executeInNewWindow(command: command)
         }
     }
@@ -210,7 +210,7 @@ enum TerminalService {
     /// - iTerm2가 실행 중이면 새 탭 추가
     /// - iTerm2가 실행 중이 아니면 시작 후 기본 창 사용 (추가 창 생성 안함)
     private static func executeInITerm(command: String) {
-        let safeCommand = escapeForAppleScript(command)
+        let safeCommand = StringEscaping.escapeForAppleScript(command)
 
         // iTerm2가 실행 중인지 먼저 확인 (tell 전에 확인해야 앱이 시작되기 전 상태를 알 수 있음)
         let script = """
@@ -251,7 +251,7 @@ enum TerminalService {
     /// - 기존 창이 있으면 새 탭 추가 (빠름)
     /// - 기존 창이 없으면 새 창 생성
     private static func executeInTerminal(command: String) {
-        let safeCommand = escapeForAppleScript(command)
+        let safeCommand = StringEscaping.escapeForAppleScript(command)
 
         let script = """
         tell application "Terminal"
@@ -277,17 +277,4 @@ enum TerminalService {
         }
     }
 
-    /// 쉘 작은따옴표 내부 이스케이프
-    /// - 예: it's → it'\''s (작은따옴표 종료, 이스케이프된 작은따옴표, 작은따옴표 시작)
-    private static func escapeForShellSingleQuote(_ string: String) -> String {
-        string.replacingOccurrences(of: "'", with: "'\\''")
-    }
-
-    /// AppleScript 문자열 이스케이프
-    /// - 백슬래시와 큰따옴표 이스케이프
-    private static func escapeForAppleScript(_ string: String) -> String {
-        string
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-    }
 }
