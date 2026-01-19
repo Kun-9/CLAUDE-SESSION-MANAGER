@@ -1,8 +1,7 @@
 // MARK: - 파일 설명
 // PermissionRequestView: 권한 요청 선택 UI
-// - 대기 중인 권한 요청 목록 표시
-// - Allow/Deny 버튼으로 사용자 선택
-// - canSubmitWithAnswers 메모이제이션으로 리렌더링 최적화
+// - 격자 레이아웃용 컴팩트 오버레이 (GridPermissionOverlay)
+// - 도구별 상세 정보 팝오버 (GridToolDetailPopover)
 
 import Combine
 import SwiftUI
@@ -117,71 +116,7 @@ final class PermissionRequestViewModel: ObservableObject {
     }
 }
 
-// MARK: - ToolBadgeView
-
-/// 도구 이름에 따른 색상 뱃지
-private struct ToolBadgeView: View {
-    let toolName: String
-
-    private var badgeColor: Color {
-        switch toolName {
-        case "Read":
-            return .blue
-        case "Edit", "Write":
-            return .orange
-        case "Bash":
-            return .purple
-        case "Glob", "Grep":
-            return .green
-        case "WebFetch", "WebSearch":
-            return .cyan
-        case "Task":
-            return .indigo
-        default:
-            return .gray
-        }
-    }
-
-    /// 알 수 없는 도구 타입인지
-    private var isUnknown: Bool {
-        !isKnownToolType(toolName)
-    }
-
-    var body: some View {
-        Text(isUnknown ? "Unknown" : toolName)
-            .font(.caption.weight(.medium))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Capsule().fill(badgeColor.opacity(0.15)))
-            .foregroundStyle(badgeColor)
-    }
-}
-
-/// 도구 이름에 따른 아이콘 반환
-private func toolIcon(for toolName: String) -> String {
-    switch toolName {
-    case "Read":
-        return "doc.text"
-    case "Edit":
-        return "pencil"
-    case "Write":
-        return "doc.badge.plus"
-    case "Bash":
-        return "terminal"
-    case "Glob":
-        return "folder.badge.questionmark"
-    case "Grep":
-        return "magnifyingglass"
-    case "WebFetch":
-        return "globe"
-    case "WebSearch":
-        return "magnifyingglass.circle"
-    case "Task":
-        return "checklist"
-    default:
-        return "wrench"
-    }
-}
+// MARK: - Helper Functions
 
 /// 알려진 도구 타입인지 확인 (MCP 등 알 수 없는 타입은 false)
 private func isKnownToolType(_ toolName: String) -> Bool {
@@ -190,1136 +125,6 @@ private func isKnownToolType(_ toolName: String) -> Bool {
         return true
     default:
         return false
-    }
-}
-
-// MARK: - ToolDetailView
-
-/// 도구 상세 정보 표시 (Edit diff, Write 미리보기)
-private struct ToolDetailView: View {
-    let toolName: String
-    let toolInput: PermissionToolInput?
-
-    @State private var isExpanded: Bool = false
-
-    var body: some View {
-        if let input = toolInput {
-            VStack(alignment: .leading, spacing: 6) {
-                // Edit diff
-                if toolName == "Edit", input.hasEditDiff {
-                    editDiffView(oldString: input.old_string, newString: input.new_string)
-                }
-
-                // Write 미리보기
-                if toolName == "Write", input.hasWriteContent {
-                    writePreviewView(content: input.content!, lineCount: input.writeLineCount)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func editDiffView(oldString: String?, newString: String?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // 헤더
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption2)
-                    Text("변경 내용")
-                        .font(.caption.weight(.medium))
-                    Spacer()
-                }
-                .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 2) {
-                    // 삭제되는 내용
-                    if let old = oldString, !old.isEmpty {
-                        HStack(alignment: .top, spacing: 4) {
-                            Text("-")
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.red)
-                            Text(old.prefix(200) + (old.count > 200 ? "..." : ""))
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.red.opacity(0.8))
-                        }
-                        .padding(6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.red.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                    }
-
-                    // 추가되는 내용
-                    if let new = newString, !new.isEmpty {
-                        HStack(alignment: .top, spacing: 4) {
-                            Text("+")
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.green)
-                            Text(new.prefix(200) + (new.count > 200 ? "..." : ""))
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.green.opacity(0.8))
-                        }
-                        .padding(6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.green.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func writePreviewView(content: String, lineCount: Int) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // 헤더
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption2)
-                    Text("새 파일 생성")
-                        .font(.caption.weight(.medium))
-                    Text("(\(lineCount)줄)")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    Spacer()
-                }
-                .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                Text(content.prefix(300) + (content.count > 300 ? "\n..." : ""))
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.primary.opacity(0.8))
-                    .padding(6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.blue.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-            }
-        }
-    }
-}
-
-// MARK: - PermissionRequestBannerView
-
-/// 권한 요청 배너 (메인 뷰 상단에 표시)
-struct PermissionRequestBannerView: View {
-    @StateObject private var viewModel = PermissionRequestViewModel()
-    @State private var expandedRequestId: String?
-
-    var body: some View {
-        if !viewModel.pendingRequests.isEmpty {
-            VStack(spacing: 8) {
-                ForEach(viewModel.pendingRequests) { request in
-                    PermissionRequestCard(
-                        request: request,
-                        isExpanded: expandedRequestId == request.id,
-                        onToggleExpand: {
-                            withAnimation(.spring(response: 0.3)) {
-                                if expandedRequestId == request.id {
-                                    expandedRequestId = nil
-                                } else {
-                                    expandedRequestId = request.id
-                                }
-                            }
-                        },
-                        onAllow: { answers in viewModel.allow(request: request, answers: answers) },
-                        onDeny: { viewModel.deny(request: request) },
-                        onAsk: { viewModel.askClaudeCode(request: request) }
-                    )
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color(NSColor.controlBackgroundColor).opacity(0.8))
-        }
-    }
-}
-
-// MARK: - PermissionRequestCard
-
-/// 개별 권한 요청 카드
-private struct PermissionRequestCard: View {
-    let request: PermissionRequest
-    let isExpanded: Bool
-    let onToggleExpand: () -> Void
-    let onAllow: ([String: String]?) -> Void
-    let onDeny: () -> Void
-    let onAsk: () -> Void
-
-    @State private var selectedOptions: [Int: String] = [:]  // 질문 인덱스 -> 선택된 label
-    @State private var customInputs: [Int: String] = [:]  // 질문 인덱스 -> 직접 입력 텍스트
-    @State private var isOtherSelected: [Int: Bool] = [:]  // 질문 인덱스 -> Other 선택 여부
-
-    /// 선택지가 있고, 모든 필수 질문에 응답했는지
-    private var canSubmitWithAnswers: Bool {
-        guard let questions = request.questions, !questions.isEmpty else { return false }
-        // 모든 질문에 답했는지 확인
-        for (index, _) in questions.enumerated() {
-            let hasSelection = selectedOptions[index] != nil
-            let hasOtherInput = isOtherSelected[index] == true && !(customInputs[index]?.isEmpty ?? true)
-            if !hasSelection && !hasOtherInput {
-                return false
-            }
-        }
-        return true
-    }
-
-    /// 선택 결과를 answers 딕셔너리로 변환
-    private var answersDict: [String: String]? {
-        guard canSubmitWithAnswers else { return nil }
-        guard let questions = request.questions else { return nil }
-        var result: [String: String] = [:]
-        for (index, _) in questions.enumerated() {
-            if isOtherSelected[index] == true, let customText = customInputs[index], !customText.isEmpty {
-                // 직접 입력한 경우
-                result["\(index)"] = customText
-            } else if let label = selectedOptions[index] {
-                // 선택지에서 선택한 경우
-                result["\(index)"] = label
-            }
-        }
-        return result
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 헤더
-            HStack {
-                Image(systemName: request.hasQuestions ? "questionmark.circle.fill" : "exclamationmark.shield.fill")
-                    .foregroundStyle(.orange)
-                    .font(.title3)
-
-                VStack(alignment: .leading, spacing: request.hasQuestions ? 2 : 4) {
-                    HStack(spacing: 6) {
-                        Text(request.hasQuestions ? "선택 요청" : "권한 요청")
-                            .font(.headline)
-                        // 세션 이름 배지
-                        Text(request.displayName)
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill(Color.blue.opacity(0.15)))
-                            .foregroundStyle(.blue)
-                    }
-                    // 선택 요청: 단순 도구명 텍스트, 권한 요청: 뱃지 + 상세 정보
-                    if request.hasQuestions {
-                        Text(request.toolName)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        HStack(spacing: 6) {
-                            // 도구 이름 뱃지
-                            ToolBadgeView(toolName: request.toolName)
-
-                            // 도구 상세 정보 (알려진 도구 타입일 때만)
-                            if isKnownToolType(request.toolName),
-                               let summary = request.toolInput?.summary(for: request.toolName) {
-                                Text(summary)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-                        }
-                    }
-                }
-
-                Spacer()
-
-                Button {
-                    onToggleExpand()
-                } label: {
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-            }
-
-            // Edit diff / Write 미리보기 (권한 요청 + 알려진 도구일 때만)
-            if !request.hasQuestions && isKnownToolType(request.toolName) {
-                ToolDetailView(toolName: request.toolName, toolInput: request.toolInput)
-                    .padding(.leading, 28)
-            }
-
-            // 선택지 UI (questions가 있을 때)
-            if let questions = request.questions, !questions.isEmpty {
-                VStack(alignment: .leading, spacing: 16) {
-                    ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
-                        QuestionSelectionView(
-                            question: question,
-                            selectedLabel: selectedOptions[index],
-                            isOtherSelected: isOtherSelected[index] ?? false,
-                            customInput: Binding(
-                                get: { customInputs[index] ?? "" },
-                                set: { customInputs[index] = $0 }
-                            ),
-                            onSelect: { label in
-                                selectedOptions[index] = label
-                                isOtherSelected[index] = false
-                            },
-                            onSelectOther: {
-                                selectedOptions[index] = nil
-                                isOtherSelected[index] = true
-                            },
-                            onSubmit: {
-                                if canSubmitWithAnswers {
-                                    onAllow(answersDict)
-                                }
-                            }
-                        )
-                    }
-                }
-                .padding(.vertical, 8)
-            }
-
-            // 확장된 정보
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 8) {
-                    if let cwd = request.cwd {
-                        HStack {
-                            Text("위치:")
-                                .foregroundStyle(.secondary)
-                            Text(cwd)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                        .font(.caption)
-                    }
-
-                    HStack {
-                        Text("세션:")
-                            .foregroundStyle(.secondary)
-                        Text(request.sessionId)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    .font(.caption)
-                }
-                .padding(.leading, 28)
-            }
-
-            // 버튼
-            if request.hasQuestions {
-                // 선택지가 있는 경우: Submit 버튼
-                HStack(spacing: 12) {
-                    Button {
-                        onAllow(answersDict)
-                    } label: {
-                        Label("Submit", systemImage: "paperplane.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.blue)
-                    .disabled(!canSubmitWithAnswers)
-
-                    Button {
-                        onAsk()
-                    } label: {
-                        Label("Ask in Terminal", systemImage: "terminal")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.gray)
-                    .help("Claude Code 터미널에서 직접 선택")
-                }
-            } else {
-                // 단순 권한 요청: Allow/Deny/Ask 버튼
-                HStack(spacing: 12) {
-                    Button {
-                        onAllow(nil)
-                    } label: {
-                        Label("Allow", systemImage: "checkmark.circle.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color(red: 0.2, green: 0.72, blue: 0.5))
-
-                    Button {
-                        onDeny()
-                    } label: {
-                        Label("Deny", systemImage: "xmark.circle.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-
-                    Button {
-                        onAsk()
-                    } label: {
-                        Label("Ask in Terminal", systemImage: "terminal")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.gray)
-                    .help("Claude Code 터미널에서 직접 선택")
-                }
-            }
-        }
-        .padding()
-        .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(NSColor.windowBackgroundColor))
-                .shadow(color: .orange.opacity(0.3), radius: 8)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.5), lineWidth: 2)
-        }
-    }
-}
-
-// MARK: - InlinePermissionRequestView
-
-/// 세션 카드 아래에 인라인으로 표시되는 권한 요청 UI
-struct InlinePermissionRequestView: View {
-    let request: PermissionRequest
-    let onAllow: ([String: String]?) -> Void
-    let onDeny: () -> Void
-    let onAsk: () -> Void
-
-    @State private var selectedOptions: [Int: Set<String>] = [:]  // multiSelect 지원
-    @State private var customInputs: [Int: String] = [:]
-    @State private var isOtherSelected: [Int: Bool] = [:]
-    @State private var hoveredTooltip: HoveredTooltip?  // 툴팁 상태 (최상위 레벨에서 렌더링)
-    @State private var containerFrame: CGRect = .zero  // 컨테이너 글로벌 좌표
-
-    private var canSubmitWithAnswers: Bool {
-        guard let questions = request.questions, !questions.isEmpty else { return false }
-        for (index, _) in questions.enumerated() {
-            let hasSelection = !(selectedOptions[index]?.isEmpty ?? true)
-            let hasOtherInput = isOtherSelected[index] == true && !(customInputs[index]?.isEmpty ?? true)
-            if !hasSelection && !hasOtherInput {
-                return false
-            }
-        }
-        return true
-    }
-
-    private var answersDict: [String: String]? {
-        guard canSubmitWithAnswers else { return nil }
-        guard let questions = request.questions else { return nil }
-        var result: [String: String] = [:]
-        for (index, _) in questions.enumerated() {
-            if isOtherSelected[index] == true, let customText = customInputs[index], !customText.isEmpty {
-                result["\(index)"] = customText
-            } else if let labels = selectedOptions[index], !labels.isEmpty {
-                // multiSelect: 쉼표로 구분된 문자열
-                result["\(index)"] = labels.sorted().joined(separator: ", ")
-            }
-        }
-        return result
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 헤더: 타입 + 도구명 (선택 요청 시 단순 텍스트, 권한 요청 시 뱃지 + 상세 정보)
-            if request.hasQuestions {
-                // 선택 요청: 이전 디자인 (단순 텍스트)
-                HStack {
-                    Image(systemName: "questionmark.circle.fill")
-                        .foregroundStyle(.orange)
-                        .font(.subheadline)
-
-                    Text("선택 요청")
-                        .font(.subheadline.weight(.medium))
-
-                    Text("• \(request.toolName)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
-                }
-            } else {
-                // 권한 요청: 새 디자인 (뱃지 + 상세 정보)
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Image(systemName: "exclamationmark.shield.fill")
-                            .foregroundStyle(.orange)
-                            .font(.subheadline)
-
-                        Text("권한 요청")
-                            .font(.subheadline.weight(.medium))
-
-                        // 도구 이름 뱃지
-                        ToolBadgeView(toolName: request.toolName)
-
-                        Spacer()
-                    }
-
-                    // 도구 상세 정보 (알려진 도구 타입일 때만)
-                    if isKnownToolType(request.toolName),
-                       let summary = request.toolInput?.summary(for: request.toolName) {
-                        HStack(spacing: 4) {
-                            Image(systemName: toolIcon(for: request.toolName))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text(summary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                        .padding(.leading, 20)
-                    }
-
-                    // Edit diff / Write 미리보기 (알려진 도구 타입일 때만)
-                    if isKnownToolType(request.toolName) {
-                        ToolDetailView(toolName: request.toolName, toolInput: request.toolInput)
-                            .padding(.leading, 20)
-                    }
-                }
-            }
-
-            // 선택지 UI (questions가 있을 때)
-            if let questions = request.questions, !questions.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
-                        InlineQuestionSelectionView(
-                            question: question,
-                            selectedLabels: selectedOptions[index] ?? [],
-                            isOtherSelected: isOtherSelected[index] ?? false,
-                            customInput: Binding(
-                                get: { customInputs[index] ?? "" },
-                                set: { customInputs[index] = $0 }
-                            ),
-                            onToggle: { label in
-                                // multiSelect: 토글, 단일선택: 교체
-                                if question.multiSelect {
-                                    var current = selectedOptions[index] ?? []
-                                    if current.contains(label) {
-                                        current.remove(label)
-                                    } else {
-                                        current.insert(label)
-                                    }
-                                    selectedOptions[index] = current
-                                } else {
-                                    selectedOptions[index] = [label]
-                                }
-                                isOtherSelected[index] = false
-                            },
-                            onSelectOther: {
-                                selectedOptions[index] = []
-                                isOtherSelected[index] = true
-                            },
-                            onHoverTooltip: { tooltip in
-                                hoveredTooltip = tooltip
-                            },
-                            onSubmit: {
-                                if canSubmitWithAnswers {
-                                    onAllow(answersDict)
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            // 버튼
-            if request.hasQuestions {
-                HStack(spacing: 8) {
-                    Button {
-                        onAllow(answersDict)
-                    } label: {
-                        Label("Submit", systemImage: "paperplane.fill")
-                            .font(.subheadline)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(canSubmitWithAnswers ? .blue : .gray)
-                    .disabled(!canSubmitWithAnswers)
-                    .opacity(canSubmitWithAnswers ? 1.0 : 0.5)
-                    .controlSize(.small)
-
-                    Button {
-                        onAsk()
-                    } label: {
-                        Label("Ask in Terminal", systemImage: "terminal")
-                            .font(.subheadline)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.gray)
-                    .controlSize(.small)
-                }
-            } else {
-                HStack(spacing: 8) {
-                    Button {
-                        onAllow(nil)
-                    } label: {
-                        Label("Allow", systemImage: "checkmark.circle.fill")
-                            .font(.subheadline)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color(red: 0.2, green: 0.72, blue: 0.5))
-                    .controlSize(.small)
-
-                    Button {
-                        onDeny()
-                    } label: {
-                        Label("Deny", systemImage: "xmark.circle.fill")
-                            .font(.subheadline)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                    .controlSize(.small)
-
-                    Button {
-                        onAsk()
-                    } label: {
-                        Label("Ask in Terminal", systemImage: "terminal")
-                            .font(.subheadline)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.gray)
-                    .controlSize(.small)
-                }
-            }
-        }
-        .padding(12)
-        .background {
-            // 컨테이너 글로벌 좌표 캡처
-            GeometryReader { geo in
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0,
-                    bottomLeadingRadius: 14,
-                    bottomTrailingRadius: 14,
-                    topTrailingRadius: 0
-                )
-                .fill(Color.orange.opacity(0.08))
-                .onAppear { containerFrame = geo.frame(in: .global) }
-                .onChange(of: geo.frame(in: .global)) { _, newFrame in
-                    containerFrame = newFrame
-                }
-            }
-        }
-        .overlay {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: 14,
-                bottomTrailingRadius: 14,
-                topTrailingRadius: 0
-            )
-            .strokeBorder(Color.orange.opacity(0.3), lineWidth: 1)
-        }
-        // 툴팁 오버레이 - 버튼과 같은 레벨에서 렌더링 (z-index 문제 해결)
-        .overlay(alignment: .topLeading) {
-            if let tooltip = hoveredTooltip, containerFrame != .zero {
-                HStack(spacing: 4) {
-                    Image(systemName: "info.circle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.7))
-                    Text(tooltip.description)
-                        .font(.caption2)
-                        .foregroundStyle(.white)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.black)
-                }
-                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-                .offset(
-                    x: tooltip.frame.minX - containerFrame.minX,
-                    y: tooltip.frame.maxY - containerFrame.minY + 4
-                )
-                .allowsHitTesting(false)
-                .zIndex(1000)
-            }
-        }
-        .padding(.horizontal, 16)
-    }
-}
-
-// MARK: - OptionChipView
-
-/// 호버된 툴팁 정보
-private struct HoveredTooltip: Equatable {
-    let description: String
-    let frame: CGRect  // 글로벌 좌표
-}
-
-/// 옵션 칩 뷰 (호버 시 좌표 전달)
-private struct OptionChipView: View {
-    let option: PermissionOption
-    let isSelected: Bool
-    let isMultiSelect: Bool
-    let onTap: () -> Void
-    let onHoverChange: (CGRect?) -> Void  // nil = 호버 해제
-
-    @State private var isHovered: Bool = false
-    @State private var currentFrame: CGRect = .zero
-
-    var body: some View {
-        Button {
-            onTap()
-        } label: {
-            HStack(spacing: 4) {
-                if isMultiSelect {
-                    Image(systemName: isSelected ? "checkmark.square.fill" : "square")
-                        .font(.caption2)
-                }
-                Text(option.label)
-                    .font(.caption)
-                // description이 있으면 info 아이콘 표시
-                if option.description != nil, !option.description!.isEmpty {
-                    Image(systemName: "info.circle")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background {
-                Capsule()
-                    .fill(isSelected
-                        ? Color.blue.opacity(0.2)
-                        : isHovered
-                            ? Color.blue.opacity(0.1)
-                            : Color(NSColor.controlBackgroundColor))
-            }
-            .overlay {
-                Capsule()
-                    .strokeBorder(isSelected
-                        ? Color.blue
-                        : isHovered
-                            ? Color.blue.opacity(0.5)
-                            : Color.clear, lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-        .background {
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { currentFrame = geo.frame(in: .global) }
-                    .onChange(of: geo.frame(in: .global)) { _, newFrame in
-                        currentFrame = newFrame
-                    }
-            }
-        }
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                onHoverChange(currentFrame)
-            } else {
-                onHoverChange(nil)
-            }
-        }
-    }
-}
-
-// MARK: - InlineQuestionSelectionView
-
-/// 인라인 권한 요청용 컴팩트 질문 선택 UI
-private struct InlineQuestionSelectionView: View {
-    let question: PermissionQuestion
-    let selectedLabels: Set<String>  // multiSelect 지원
-    let isOtherSelected: Bool
-    @Binding var customInput: String
-    let onToggle: (String) -> Void  // 토글 (multiSelect) 또는 선택 (단일)
-    let onSelectOther: () -> Void
-    let onHoverTooltip: (HoveredTooltip?) -> Void  // 부모에서 툴팁 렌더링
-    let onSubmit: () -> Void  // Enter 키 제출 (부모에서 canSubmit 확인 후 호출)
-
-    @FocusState private var isTextFieldFocused: Bool
-
-    /// 옵션이 선택되었는지 확인
-    private func isSelected(_ label: String) -> Bool {
-        selectedLabels.contains(label) && !isOtherSelected
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // 질문 텍스트 + multiSelect 표시
-            HStack(spacing: 4) {
-                if let questionText = question.question {
-                    Text(questionText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if question.multiSelect {
-                    Text("(복수 선택)")
-                        .font(.caption2)
-                        .foregroundStyle(.blue)
-                }
-            }
-
-            // 옵션들 (가로 스크롤 칩 형태)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(question.options) { option in
-                        OptionChipView(
-                            option: option,
-                            isSelected: isSelected(option.label),
-                            isMultiSelect: question.multiSelect,
-                            onTap: { onToggle(option.label) },
-                            onHoverChange: { frame in
-                                if let frame = frame,
-                                   let desc = option.description,
-                                   !desc.isEmpty {
-                                    onHoverTooltip(HoveredTooltip(description: desc, frame: frame))
-                                } else {
-                                    onHoverTooltip(nil)
-                                }
-                            }
-                        )
-                    }
-
-                    // Other 칩
-                    Button {
-                        onSelectOther()
-                        isTextFieldFocused = true
-                    } label: {
-                        Text("Other")
-                            .font(.caption)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background {
-                                Capsule()
-                                    .fill(isOtherSelected
-                                        ? Color.blue.opacity(0.2)
-                                        : Color(NSColor.controlBackgroundColor))
-                            }
-                            .overlay {
-                                Capsule()
-                                    .strokeBorder(isOtherSelected
-                                        ? Color.blue
-                                        : Color.clear, lineWidth: 1)
-                            }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            // Other 텍스트 필드
-            if isOtherSelected {
-                TextField("직접 입력...", text: $customInput)
-                    .textFieldStyle(.plain)
-                    .font(.caption)
-                    .padding(8)
-                    .background {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color(NSColor.textBackgroundColor))
-                    }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(Color.blue.opacity(0.5), lineWidth: 1)
-                    }
-                    .focused($isTextFieldFocused)
-                    .onSubmit {
-                        onSubmit()
-                    }
-            }
-        }
-    }
-}
-
-// MARK: - QuestionSelectionView
-
-/// 개별 질문의 선택지 UI
-private struct QuestionSelectionView: View {
-    let question: PermissionQuestion
-    let selectedLabel: String?
-    let isOtherSelected: Bool
-    @Binding var customInput: String
-    let onSelect: (String) -> Void
-    let onSelectOther: () -> Void
-    let onSubmit: () -> Void  // Enter 키 제출 (부모에서 canSubmit 확인 후 호출)
-
-    @FocusState private var isTextFieldFocused: Bool
-    @State private var hoveredTooltip: HoveredTooltip?
-    @State private var containerFrame: CGRect = .zero
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // 질문 헤더
-            if let header = question.header {
-                Text(header)
-                    .font(.subheadline.weight(.semibold))
-            }
-            if let questionText = question.question {
-                Text(questionText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            // 선택지 버튼들
-            VStack(spacing: 6) {
-                ForEach(question.options) { option in
-                    OptionRowView(
-                        option: option,
-                        isSelected: selectedLabel == option.label && !isOtherSelected,
-                        onTap: { onSelect(option.label) },
-                        onHoverChange: { frame in
-                            if let frame = frame,
-                               let desc = option.description,
-                               !desc.isEmpty {
-                                hoveredTooltip = HoveredTooltip(description: desc, frame: frame)
-                            } else {
-                                hoveredTooltip = nil
-                            }
-                        }
-                    )
-                }
-
-                // Other (직접 입력) 옵션
-                Button {
-                    onSelectOther()
-                    isTextFieldFocused = true
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Other")
-                                .font(.subheadline)
-                            Text("직접 입력")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if isOtherSelected {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.blue)
-                        }
-                    }
-                    .padding(10)
-                    .background {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(isOtherSelected
-                                ? Color.blue.opacity(0.1)
-                                : Color(NSColor.controlBackgroundColor))
-                    }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(isOtherSelected
-                                ? Color.blue.opacity(0.5)
-                                : Color.clear, lineWidth: 1)
-                    }
-                }
-                .buttonStyle(.plain)
-
-                // Other 선택 시 텍스트 필드 표시
-                if isOtherSelected {
-                    TextField("응답 입력...", text: $customInput)
-                        .textFieldStyle(.plain)
-                        .padding(10)
-                        .background {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(NSColor.textBackgroundColor))
-                        }
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8)
-                                .strokeBorder(Color.blue.opacity(0.5), lineWidth: 1)
-                        }
-                        .focused($isTextFieldFocused)
-                        .onSubmit {
-                            onSubmit()
-                        }
-                }
-            }
-        }
-        .background {
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { containerFrame = geo.frame(in: .global) }
-                    .onChange(of: geo.frame(in: .global)) { _, newFrame in
-                        containerFrame = newFrame
-                    }
-            }
-        }
-        .overlay(alignment: .topLeading) {
-            // 툴팁 오버레이
-            if let tooltip = hoveredTooltip, containerFrame != .zero {
-                HStack(spacing: 4) {
-                    Image(systemName: "info.circle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.7))
-                    Text(tooltip.description)
-                        .font(.caption2)
-                        .foregroundStyle(.white)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.black)
-                }
-                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-                .offset(
-                    x: tooltip.frame.minX - containerFrame.minX,
-                    y: tooltip.frame.maxY - containerFrame.minY + 4
-                )
-                .allowsHitTesting(false)
-                .zIndex(1000)
-            }
-        }
-    }
-}
-
-// MARK: - OptionRowView
-
-/// 옵션 행 뷰 (호버 시 좌표 전달)
-private struct OptionRowView: View {
-    let option: PermissionOption
-    let isSelected: Bool
-    let onTap: () -> Void
-    let onHoverChange: (CGRect?) -> Void
-
-    @State private var isHovered: Bool = false
-    @State private var currentFrame: CGRect = .zero
-
-    var body: some View {
-        Button {
-            onTap()
-        } label: {
-            HStack {
-                HStack(spacing: 4) {
-                    Text(option.label)
-                        .font(.subheadline)
-                    if option.description != nil, !option.description!.isEmpty {
-                        Image(systemName: "info.circle")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.blue)
-                }
-            }
-            .padding(10)
-            .background {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected
-                        ? Color.blue.opacity(0.1)
-                        : isHovered
-                            ? Color.blue.opacity(0.05)
-                            : Color(NSColor.controlBackgroundColor))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(isSelected
-                        ? Color.blue.opacity(0.5)
-                        : isHovered
-                            ? Color.blue.opacity(0.3)
-                            : Color.clear, lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-        .background {
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { currentFrame = geo.frame(in: .global) }
-                    .onChange(of: geo.frame(in: .global)) { _, newFrame in
-                        currentFrame = newFrame
-                    }
-            }
-        }
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                onHoverChange(currentFrame)
-            } else {
-                onHoverChange(nil)
-            }
-        }
-    }
-}
-
-// MARK: - PermissionRequestPopover
-
-/// 권한 요청 팝오버 (상태바 아이콘용)
-struct PermissionRequestPopover: View {
-    @StateObject private var viewModel = PermissionRequestViewModel()
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if viewModel.pendingRequests.isEmpty {
-                Text("대기 중인 권한 요청이 없습니다")
-                    .foregroundStyle(.secondary)
-                    .padding()
-            } else {
-                ScrollView {
-                    VStack(spacing: 8) {
-                        ForEach(viewModel.pendingRequests) { request in
-                            CompactPermissionCard(
-                                request: request,
-                                onAllow: { viewModel.allow(request: request) },
-                                onDeny: { viewModel.deny(request: request) }
-                            )
-                        }
-                    }
-                    .padding()
-                }
-                .frame(maxHeight: 400)
-            }
-        }
-        .frame(width: 320)
-    }
-}
-
-// MARK: - CompactPermissionCard
-
-/// 간소화된 권한 요청 카드 (팝오버용)
-private struct CompactPermissionCard: View {
-    let request: PermissionRequest
-    let onAllow: () -> Void
-    let onDeny: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.shield.fill")
-                .foregroundStyle(.orange)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(request.toolName)
-                    .font(.subheadline.weight(.medium))
-                if let cwd = request.cwd {
-                    Text(cwd.split(separator: "/").last.map(String.init) ?? cwd)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            HStack(spacing: 8) {
-                Button {
-                    onAllow()
-                } label: {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    onDeny()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.red)
-                }
-                .buttonStyle(.plain)
-            }
-            .font(.title3)
-        }
-        .padding(10)
-        .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(NSColor.controlBackgroundColor))
-        }
     }
 }
 
@@ -1341,13 +146,6 @@ struct GridPermissionOverlay: View {
 
     /// 세련된 초록색 (민트 계열)
     private let allowColor = Color(red: 0.2, green: 0.72, blue: 0.5)
-
-    /// Edit/Write 상세 정보가 있는지
-    private var hasToolDetail: Bool {
-        guard let input = request.toolInput else { return false }
-        return (request.toolName == "Edit" && input.hasEditDiff) ||
-               (request.toolName == "Write" && input.hasWriteContent)
-    }
 
     private var canSubmit: Bool {
         guard let questions = request.questions, !questions.isEmpty else { return false }
@@ -1375,7 +173,7 @@ struct GridPermissionOverlay: View {
         return result
     }
 
-    /// 뱃지 색상 (ToolBadgeView와 동일한 로직)
+    /// 뱃지 색상
     private var badgeColor: Color {
         switch request.toolName {
         case "Read":
@@ -1398,7 +196,7 @@ struct GridPermissionOverlay: View {
     var body: some View {
         // 선택 요청: 버튼만, 권한 요청: 도구 정보 헤더 + 버튼
         if request.hasQuestions {
-            // 선택 요청: 이전 디자인 (버튼만 표시)
+            // 선택 요청: 버튼만 표시
             buttonBar
                 .background {
                     UnevenRoundedRectangle(
@@ -1418,7 +216,7 @@ struct GridPermissionOverlay: View {
                     )
                 )
         } else {
-            // 권한 요청: 새 디자인 (도구 정보 헤더 + 버튼)
+            // 권한 요청: 도구 정보 헤더 + 버튼
             VStack(spacing: 0) {
                 // 도구 정보 헤더 (한 줄)
                 HStack(spacing: 4) {
@@ -1584,25 +382,42 @@ struct GridPermissionOverlay: View {
 // MARK: - BashHighlightedText
 
 // TODO: 구문 강조 라이브러리로 대체 예정 (예: Splash, Highlightr 등)
-/// Bash 명령어 구문 강조 뷰
+/// Bash 명령어 구문 강조 뷰 (여러 줄 지원)
 private struct BashHighlightedText: View {
     let command: String
 
-    var body: some View {
-        Text(highlightedCommand)
-            .font(.caption.monospaced())
+    /// 줄 단위로 분리된 명령어
+    private var lines: [String] {
+        command.components(separatedBy: "\n")
     }
 
-    /// 구문 강조된 AttributedString 생성
-    private var highlightedCommand: AttributedString {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                Text(highlightedLine(line, isFirstLine: index == 0))
+                    .font(.caption.monospaced())
+                    .fixedSize(horizontal: false, vertical: true)  // 가로 줄바꿈 허용
+            }
+        }
+    }
+
+    /// 단일 줄의 구문 강조된 AttributedString 생성
+    private func highlightedLine(_ line: String, isFirstLine: Bool) -> AttributedString {
         var result = AttributedString()
 
-        // $ 프롬프트 추가
-        var prompt = AttributedString("$ ")
-        prompt.foregroundColor = .secondary
-        result.append(prompt)
+        // $ 프롬프트 추가 (첫 줄만)
+        if isFirstLine {
+            var prompt = AttributedString("$ ")
+            prompt.foregroundColor = .secondary
+            result.append(prompt)
+        } else {
+            // 연속 줄은 들여쓰기
+            var indent = AttributedString("  ")
+            indent.foregroundColor = .secondary
+            result.append(indent)
+        }
 
-        let tokens = tokenize(command)
+        let tokens = tokenize(line)
         var isFirstWord = true
 
         for token in tokens {
@@ -1763,6 +578,49 @@ private struct BashHighlightedText: View {
     }
 }
 
+// MARK: - BashCodeBlock
+
+/// Bash 명령어 코드 블럭
+/// - 5줄 이내: 스크롤 없이 전체 표시
+/// - 5줄 초과: 스크롤 가능
+private struct BashCodeBlock: View {
+    let command: String
+
+    /// 최대 높이 (스크롤 필요 시)
+    private let maxHeight: CGFloat = 200
+
+    /// 명령어 줄 수
+    private var lineCount: Int {
+        command.components(separatedBy: "\n").count
+    }
+
+    /// 스크롤이 필요한지 (5줄 초과 시)
+    private var needsScroll: Bool {
+        lineCount > 5
+    }
+
+    var body: some View {
+        if needsScroll {
+            ScrollView(.vertical) {
+                codeContent
+            }
+            .frame(maxHeight: maxHeight)
+            .background(Color(NSColor.textBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        } else {
+            codeContent
+                .background(Color(NSColor.textBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
+    private var codeContent: some View {
+        BashHighlightedText(command: command)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+    }
+}
+
 // MARK: - DiffCodeBlock
 
 /// Diff 코드 블럭 (삭제/추가 표시)
@@ -1774,7 +632,7 @@ private struct DiffCodeBlock: View {
     let color: Color
 
     /// 최대 높이 (스크롤 필요 시)
-    private let maxHeight: CGFloat = 100
+    private let maxHeight: CGFloat = 300
 
     /// 텍스트 줄 수
     private var lineCount: Int {
@@ -1813,6 +671,7 @@ private struct DiffCodeBlock: View {
         Text(text)
             .font(.caption.monospaced())
             .foregroundStyle(color.opacity(0.9))
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(8)
     }
@@ -1826,7 +685,7 @@ private struct WriteCodeBlock: View {
     let content: String
 
     /// 최대 높이
-    private let maxHeight: CGFloat = 200
+    private let maxHeight: CGFloat = 400
 
     /// 스크롤이 필요한지 (대략 10줄 이상이면 스크롤)
     private var needsScroll: Bool {
@@ -1858,6 +717,7 @@ private struct WriteCodeBlock: View {
         Text(content)
             .font(.caption.monospaced())
             .foregroundStyle(.primary.opacity(0.9))
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(8)
     }
@@ -1921,16 +781,9 @@ private struct GridToolDetailPopover: View {
             Divider()
 
             if let input = toolInput {
-                // Bash 명령어 (전체 표시 + 하이라이팅)
+                // Bash 명령어 (전체 표시 + 하이라이팅, 줄바꿈 지원)
                 if toolName == "Bash", let command = input.command, !command.isEmpty {
-                    ScrollView(.vertical) {
-                        BashHighlightedText(command: command)
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                    .frame(maxHeight: 150)
-                    .padding(8)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    BashCodeBlock(command: command)
                 }
 
                 // Edit diff
@@ -2220,11 +1073,4 @@ private struct FlowLayout: Layout {
 
         return (CGSize(width: maxWidth, height: totalHeight), positions)
     }
-}
-
-// MARK: - Preview
-
-#Preview {
-    PermissionRequestBannerView()
-        .frame(width: 400)
 }
