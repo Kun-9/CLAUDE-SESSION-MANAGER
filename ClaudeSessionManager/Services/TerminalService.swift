@@ -180,6 +180,7 @@ enum TerminalService {
 
             alert.addButton(withTitle: "열기")
             alert.addButton(withTitle: "취소")
+            alert.buttons[1].keyEquivalent = "\u{1b}"  // ESC 키로 취소
 
             if let window = window {
                 alert.beginSheetModal(for: window) { response in

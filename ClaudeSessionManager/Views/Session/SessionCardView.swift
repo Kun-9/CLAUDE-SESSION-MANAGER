@@ -330,7 +330,7 @@ struct CommandHoverResumeOverlay: ViewModifier {
             }
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .onTapGesture {
-                TerminalService.resumeSession(sessionId: session.id, location: session.location)
+                TerminalService.resumeSession(sessionId: session.id, location: session.locationPath)
             }
             .allowsHitTesting(showOverlay)
     }
