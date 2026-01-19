@@ -180,21 +180,35 @@
 
 ## 마크다운 렌더링
 
-- [ ] 마크다운 렌더링 개선
+- [x] 마크다운 렌더링 개선
   - 설명: 현재 자체 파서(MarkdownParser)는 코드/텍스트 블록 분리만 지원. 라이브러리 검토 후 코드 하이라이팅과 표 렌더링 추가
+  - 해결: **Textual 라이브러리(MarkdownUI 후속)** 도입으로 전체 마크다운 렌더링 대체
+    - macOS 15+ 타겟 업그레이드
+    - StructuredText 기반 전체 렌더링
+    - CustomCodeBlockStyle: 문법 하이라이팅 + 복사 버튼
+    - CustomTableStyle/CustomTableCellStyle: 테이블 스타일링
+    - CustomThematicBreakStyle: 구분선 스타일
+    - Color.primary.opacity() 사용으로 테마 적응형 색상
   - 비용: L (하위 합산)
   - 영향도: Mid
-  - 관련 파일: `ClaudeSessionManager/Utilities/MarkdownParser.swift`, `ClaudeSessionManager/Views/Session/MarkdownMessageView.swift`
+  - 관련 파일: `ClaudeSessionManager/Views/Session/MarkdownMessageView.swift`
+  - 완료일: 2026-01-20
   - 하위 항목:
-    - [ ] 마크다운 라이브러리 검토
+    - [x] 마크다운 라이브러리 검토
       - 설명: swift-markdown(Apple), Ink, Down 등 기존 라이브러리 비교 검토
+      - 해결: Textual 선택 (MarkdownUI 후속, macOS 15+ 필요, 문법 하이라이팅 내장)
       - 비용: S
-    - [ ] 코드 블록 타입별 신택스 하이라이팅
-      - 설명: ` ```swift `, ` ```python ` 등 언어 타입 파싱 후 색상 하이라이팅 적용. **HighlightSwift** 라이브러리 사용 (185개 언어, 30+ 테마, SwiftUI 네이티브)
+      - 완료일: 2026-01-20
+    - [x] 코드 블록 타입별 신택스 하이라이팅
+      - 설명: ` ```swift `, ` ```python ` 등 언어 타입 파싱 후 색상 하이라이팅 적용
+      - 해결: Textual의 CodeBlockStyle + Highlight 내장 기능 사용, 복사 버튼 추가
       - 비용: M
-    - [ ] 마크다운 표(Table) 렌더링
-      - 설명: `| col1 | col2 |` 형식의 GFM 표 파싱 및 렌더링. Grid 또는 HStack/VStack 조합으로 구현
+      - 완료일: 2026-01-20
+    - [x] 마크다운 표(Table) 렌더링
+      - 설명: `| col1 | col2 |` 형식의 GFM 표 파싱 및 렌더링
+      - 해결: Textual의 TableStyle/TableCellStyle 커스터마이징으로 구현
       - 비용: M
+      - 완료일: 2026-01-20
 
 ## Debug 기능
 
@@ -290,6 +304,33 @@
   - 영향도: High
   - 관련 파일: `ClaudeSessionManager/Views/Components/PermissionRequestView.swift:67-95`
   - 완료일: 2026-01-16
+
+- [x] 마크다운 인라인 파싱 최적화
+  - 설명: `MarkdownTextBlockView`에서 `parseInlineMarkdown()`을 각 라인마다 호출하여 스크롤 시 버벅임 발생. `AttributedString(markdown:)` 생성 비용이 높아 대화 목록 스크롤 시 성능 저하가 심각함
+  - 해결: **Textual 라이브러리 도입으로 근본 해결**. 자체 파서(MarkdownParser, MarkdownTextBlockView) 대신 Textual의 StructuredText 사용. 라인별 파싱 없이 전체 마크다운을 한 번에 렌더링
+  - 비용: S (Textual 마이그레이션에 포함)
+  - 영향도: High
+  - 관련 파일: `ClaudeSessionManager/Views/Session/MarkdownMessageView.swift`
+  - 완료일: 2026-01-20
+
+- [ ] Running 세션 무한 애니메이션 최적화
+  - 설명: `CompactStatusIndicator`의 펄스 애니메이션이 `.repeatForever()`로 설정되어 화면에 보이지 않는 카드도 계속 애니메이션 실행. Running 세션이 많으면 프레임 드롭 발생
+  - 비용: S
+  - 영향도: High
+  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionCardView.swift:224-250`
+  - 개선 방안:
+    - `onAppear/onDisappear`로 애니메이션 시작/중지 제어
+    - 또는 `TimelineView` 사용으로 시스템 최적화 활용
+
+- [ ] 이벤트 모니터 중복 등록 제거
+  - 설명: `CommandHoverResumeOverlay`에서 각 세션 카드마다 `NSEvent.addLocalMonitorForEvents()` 호출. 격자에 100개 카드 있으면 100개의 전역 이벤트 모니터가 등록되어 키 입력마다 100개 클로저 실행
+  - 비용: M
+  - 영향도: High
+  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionCardView.swift:338-369`
+  - 개선 방안:
+    - 부모 뷰(SessionGridView)에서 단일 모니터 등록
+    - `@Environment` 또는 `@EnvironmentObject`로 Command 키 상태 공유
+    - 개별 카드는 상태 조회만 수행
 
 ## UI 일관성
 
