@@ -2,6 +2,7 @@
 // PermissionRequestView: 권한 요청 선택 UI
 // - 대기 중인 권한 요청 목록 표시
 // - Allow/Deny 버튼으로 사용자 선택
+// - canSubmitWithAnswers 메모이제이션으로 리렌더링 최적화
 
 import Combine
 import SwiftUI
@@ -12,6 +13,9 @@ import SwiftUI
 @MainActor
 final class PermissionRequestViewModel: ObservableObject {
     @Published var pendingRequests: [PermissionRequest] = []
+
+    /// 세션 ID별 권한 요청 매핑 (O(1) 검색용)
+    @Published private(set) var requestsBySessionId: [String: PermissionRequest] = [:]
 
     /// Observer 참조 (deinit에서 안전한 정리를 위해 nonisolated(unsafe) 사용)
     nonisolated(unsafe) private var permissionObserver: NSObjectProtocol?
@@ -40,7 +44,15 @@ final class PermissionRequestViewModel: ObservableObject {
 
     /// 대기 중인 요청 로드
     func loadPendingRequests() {
-        pendingRequests = PermissionRequestStore.loadPendingRequests()
+        let requests = PermissionRequestStore.loadPendingRequests()
+        pendingRequests = requests
+        // O(1) 검색을 위한 딕셔너리 갱신 (중복 sessionId는 첫 번째 요청만 유지)
+        requestsBySessionId = Dictionary(requests.map { ($0.sessionId, $0) }) { first, _ in first }
+    }
+
+    /// 특정 세션의 권한 요청 조회 (O(1))
+    func permissionRequest(for sessionId: String) -> PermissionRequest? {
+        requestsBySessionId[sessionId]
     }
 
     /// 요청 허용 (선택지 응답 포함)
@@ -90,6 +102,8 @@ final class PermissionRequestViewModel: ObservableObject {
 
         // 세션 변경 알림 (PostToolUse 등 훅 처리 완료 시)
         // 터미널에서 권한 응답 시 pending 삭제 감지용
+        // 참고: 두 알림이 동시에 발생할 수 있으나, loadPendingRequests()는
+        // 빠르게 완료되므로 debounce 불필요
         sessionObserver = DistributedNotificationCenter.default().addObserver(
             forName: SessionStore.sessionsDidChangeNotification,
             object: nil,
@@ -128,8 +142,13 @@ private struct ToolBadgeView: View {
         }
     }
 
+    /// 알 수 없는 도구 타입인지
+    private var isUnknown: Bool {
+        !isKnownToolType(toolName)
+    }
+
     var body: some View {
-        Text(toolName)
+        Text(isUnknown ? "Unknown" : toolName)
             .font(.caption.weight(.medium))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -161,6 +180,16 @@ private func toolIcon(for toolName: String) -> String {
         return "checklist"
     default:
         return "wrench"
+    }
+}
+
+/// 알려진 도구 타입인지 확인 (MCP 등 알 수 없는 타입은 false)
+private func isKnownToolType(_ toolName: String) -> Bool {
+    switch toolName {
+    case "Read", "Edit", "Write", "Bash", "Glob", "Grep", "WebFetch", "WebSearch", "Task":
+        return true
+    default:
+        return false
     }
 }
 
@@ -370,10 +399,10 @@ private struct PermissionRequestCard: View {
             // 헤더
             HStack {
                 Image(systemName: request.hasQuestions ? "questionmark.circle.fill" : "exclamationmark.shield.fill")
-                    .foregroundStyle(request.hasQuestions ? .blue : .orange)
+                    .foregroundStyle(.orange)
                     .font(.title3)
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: request.hasQuestions ? 2 : 4) {
                     HStack(spacing: 6) {
                         Text(request.hasQuestions ? "선택 요청" : "권한 요청")
                             .font(.headline)
@@ -385,17 +414,25 @@ private struct PermissionRequestCard: View {
                             .background(Capsule().fill(Color.blue.opacity(0.15)))
                             .foregroundStyle(.blue)
                     }
-                    HStack(spacing: 6) {
-                        // 도구 이름 뱃지
-                        ToolBadgeView(toolName: request.toolName)
+                    // 선택 요청: 단순 도구명 텍스트, 권한 요청: 뱃지 + 상세 정보
+                    if request.hasQuestions {
+                        Text(request.toolName)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        HStack(spacing: 6) {
+                            // 도구 이름 뱃지
+                            ToolBadgeView(toolName: request.toolName)
 
-                        // 도구 상세 정보 (있을 경우)
-                        if let summary = request.toolInput?.summary(for: request.toolName) {
-                            Text(summary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
+                            // 도구 상세 정보 (알려진 도구 타입일 때만)
+                            if isKnownToolType(request.toolName),
+                               let summary = request.toolInput?.summary(for: request.toolName) {
+                                Text(summary)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
                         }
                     }
                 }
@@ -411,9 +448,11 @@ private struct PermissionRequestCard: View {
                 .buttonStyle(.plain)
             }
 
-            // Edit diff / Write 미리보기
-            ToolDetailView(toolName: request.toolName, toolInput: request.toolInput)
-                .padding(.leading, 28)
+            // Edit diff / Write 미리보기 (권한 요청 + 알려진 도구일 때만)
+            if !request.hasQuestions && isKnownToolType(request.toolName) {
+                ToolDetailView(toolName: request.toolName, toolInput: request.toolInput)
+                    .padding(.leading, 28)
+            }
 
             // 선택지 UI (questions가 있을 때)
             if let questions = request.questions, !questions.isEmpty {
@@ -533,11 +572,11 @@ private struct PermissionRequestCard: View {
         .background {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color(NSColor.windowBackgroundColor))
-                .shadow(color: request.hasQuestions ? .blue.opacity(0.3) : .orange.opacity(0.3), radius: 8)
+                .shadow(color: .orange.opacity(0.3), radius: 8)
         }
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(request.hasQuestions ? Color.blue.opacity(0.5) : Color.orange.opacity(0.5), lineWidth: 2)
+                .strokeBorder(Color.orange.opacity(0.5), lineWidth: 2)
         }
     }
 }
@@ -586,40 +625,62 @@ struct InlinePermissionRequestView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // 헤더: 타입 + 도구명 + 도구 상세 정보
-            VStack(alignment: .leading, spacing: 4) {
+            // 헤더: 타입 + 도구명 (선택 요청 시 단순 텍스트, 권한 요청 시 뱃지 + 상세 정보)
+            if request.hasQuestions {
+                // 선택 요청: 이전 디자인 (단순 텍스트)
                 HStack {
-                    Image(systemName: request.hasQuestions ? "questionmark.circle.fill" : "exclamationmark.shield.fill")
-                        .foregroundStyle(request.hasQuestions ? .blue : .orange)
+                    Image(systemName: "questionmark.circle.fill")
+                        .foregroundStyle(.orange)
                         .font(.subheadline)
 
-                    Text(request.hasQuestions ? "선택 요청" : "권한 요청")
+                    Text("선택 요청")
                         .font(.subheadline.weight(.medium))
 
-                    // 도구 이름 뱃지
-                    ToolBadgeView(toolName: request.toolName)
+                    Text("• \(request.toolName)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                     Spacer()
                 }
+            } else {
+                // 권한 요청: 새 디자인 (뱃지 + 상세 정보)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Image(systemName: "exclamationmark.shield.fill")
+                            .foregroundStyle(.orange)
+                            .font(.subheadline)
 
-                // 도구 상세 정보 (있을 경우)
-                if let summary = request.toolInput?.summary(for: request.toolName) {
-                    HStack(spacing: 4) {
-                        Image(systemName: toolIcon(for: request.toolName))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text(summary)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                        Text("권한 요청")
+                            .font(.subheadline.weight(.medium))
+
+                        // 도구 이름 뱃지
+                        ToolBadgeView(toolName: request.toolName)
+
+                        Spacer()
                     }
-                    .padding(.leading, 20)
-                }
 
-                // Edit diff / Write 미리보기
-                ToolDetailView(toolName: request.toolName, toolInput: request.toolInput)
-                    .padding(.leading, 20)
+                    // 도구 상세 정보 (알려진 도구 타입일 때만)
+                    if isKnownToolType(request.toolName),
+                       let summary = request.toolInput?.summary(for: request.toolName) {
+                        HStack(spacing: 4) {
+                            Image(systemName: toolIcon(for: request.toolName))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text(summary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .padding(.leading, 20)
+                    }
+
+                    // Edit diff / Write 미리보기 (알려진 도구 타입일 때만)
+                    if isKnownToolType(request.toolName) {
+                        ToolDetailView(toolName: request.toolName, toolInput: request.toolInput)
+                            .padding(.leading, 20)
+                    }
+                }
             }
 
             // 선택지 UI (questions가 있을 때)
@@ -737,9 +798,7 @@ struct InlinePermissionRequestView: View {
                     bottomTrailingRadius: 14,
                     topTrailingRadius: 0
                 )
-                .fill(request.hasQuestions
-                    ? Color.blue.opacity(0.08)
-                    : Color.orange.opacity(0.08))
+                .fill(Color.orange.opacity(0.08))
                 .onAppear { containerFrame = geo.frame(in: .global) }
                 .onChange(of: geo.frame(in: .global)) { _, newFrame in
                     containerFrame = newFrame
@@ -753,10 +812,7 @@ struct InlinePermissionRequestView: View {
                 bottomTrailingRadius: 14,
                 topTrailingRadius: 0
             )
-            .strokeBorder(
-                request.hasQuestions ? Color.blue.opacity(0.3) : Color.orange.opacity(0.3),
-                lineWidth: 1
-            )
+            .strokeBorder(Color.orange.opacity(0.3), lineWidth: 1)
         }
         // 툴팁 오버레이 - 버튼과 같은 레벨에서 렌더링 (z-index 문제 해결)
         .overlay(alignment: .topLeading) {
@@ -1340,58 +1396,82 @@ struct GridPermissionOverlay: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 도구 정보 헤더 (한 줄)
-            HStack(spacing: 4) {
-                // 도구 이름 뱃지
-                Text(request.toolName)
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(badgeColor))
-                    .foregroundStyle(.white)
-                    .fixedSize()
-
-                Spacer(minLength: 4)
-
-                // 상세 보기 버튼 (파일 경로, diff 등)
-                Button {
-                    showDetailPopover.toggle()
-                } label: {
-                    Image(systemName: "info.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.white)
-                }
-                .buttonStyle(.plain)
-                .fixedSize()
-                .popover(isPresented: $showDetailPopover, arrowEdge: .top) {
-                    GridToolDetailPopover(toolName: request.toolName, toolInput: request.toolInput)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4.5)
-            .background(Color.black.opacity(0.3))
-
-            // 버튼 영역
+        // 선택 요청: 버튼만, 권한 요청: 도구 정보 헤더 + 버튼
+        if request.hasQuestions {
+            // 선택 요청: 이전 디자인 (버튼만 표시)
             buttonBar
-        }
-        .background {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: 10,
-                bottomTrailingRadius: 10,
-                topTrailingRadius: 0
+                .background {
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 0,
+                        bottomLeadingRadius: 10,
+                        bottomTrailingRadius: 10,
+                        topTrailingRadius: 0
+                    )
+                    .fill(Color.orange)
+                }
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 0,
+                        bottomLeadingRadius: 10,
+                        bottomTrailingRadius: 10,
+                        topTrailingRadius: 0
+                    )
+                )
+        } else {
+            // 권한 요청: 새 디자인 (도구 정보 헤더 + 버튼)
+            VStack(spacing: 0) {
+                // 도구 정보 헤더 (한 줄)
+                HStack(spacing: 4) {
+                    // 도구 이름 뱃지 (알 수 없는 타입은 "Unknown")
+                    Text(isKnownToolType(request.toolName) ? request.toolName : "Unknown")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(badgeColor))
+                        .foregroundStyle(.white)
+                        .fixedSize()
+
+                    Spacer(minLength: 4)
+
+                    // 상세 보기 버튼 (파일 경로, diff 등)
+                    Button {
+                        showDetailPopover.toggle()
+                    } label: {
+                        Image(systemName: "info.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .fixedSize()
+                    .popover(isPresented: $showDetailPopover, arrowEdge: .top) {
+                        GridToolDetailPopover(toolName: request.toolName, toolInput: request.toolInput)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4.5)
+                .background(Color.black.opacity(0.3))
+
+                // 버튼 영역
+                buttonBar
+            }
+            .background {
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 0,
+                    bottomLeadingRadius: 10,
+                    bottomTrailingRadius: 10,
+                    topTrailingRadius: 0
+                )
+                .fill(Color.orange)
+            }
+            .clipShape(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 0,
+                    bottomLeadingRadius: 10,
+                    bottomTrailingRadius: 10,
+                    topTrailingRadius: 0
+                )
             )
-            .fill(request.hasQuestions ? Color.blue : Color.orange)
         }
-        .clipShape(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: 10,
-                bottomTrailingRadius: 10,
-                topTrailingRadius: 0
-            )
-        )
     }
 
     // MARK: - 버튼 바
