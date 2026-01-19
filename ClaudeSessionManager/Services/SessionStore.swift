@@ -2,6 +2,7 @@
 // SessionStore: 세션 메타데이터 CRUD 및 상태 관리
 // - UserDefaults 기반 영속화
 // - DistributedNotificationCenter로 변경 알림 전파
+// - 메모리 캐싱으로 반복적인 JSON 파싱 방지
 
 import Foundation
 
@@ -10,6 +11,22 @@ enum SessionStore {
     static let seenSessionsKey = "session.seen"
     static let defaults = SettingsStore.defaults
     static let sessionsDidChangeNotification = Notification.Name("ClaudeSessionManager.session.list.updated")
+
+    // MARK: - 캐시 (성능 최적화)
+
+    /// 세션 목록 캐시 (JSON 파싱 비용 절감)
+    private static var cachedSessions: [SessionRecord]?
+    /// 세션 ID → 인덱스 매핑 (O(1) 검색용)
+    private static var sessionIndexMap: [String: Int] = [:]
+    /// seen 세션 ID 캐시
+    private static var cachedSeenIds: Set<String>?
+
+    /// 캐시 무효화 (외부 변경 감지 시 호출)
+    static func invalidateCache() {
+        cachedSessions = nil
+        sessionIndexMap.removeAll()
+        cachedSeenIds = nil
+    }
 
     // 세션 저장 레코드
     struct SessionRecord: Codable, Identifiable {
@@ -25,23 +42,55 @@ enum SessionStore {
         let lastResponse: String?
     }
 
-    // 저장된 세션 목록 로드
+    // MARK: - CRUD 메서드
+
+    /// 저장된 세션 목록 로드 (캐시 우선)
     static func loadSessions() -> [SessionRecord] {
-        defaults.synchronize()
+        // 캐시가 있으면 바로 반환
+        if let cached = cachedSessions {
+            return cached
+        }
+
+        // 캐시 미스: UserDefaults에서 로드
         guard let data = defaults.data(forKey: sessionsKey) else {
+            cachedSessions = []
+            rebuildIndexMap([])
             return []
         }
-        return (try? JSONDecoder().decode([SessionRecord].self, from: data)) ?? []
+
+        let sessions = (try? JSONDecoder().decode([SessionRecord].self, from: data)) ?? []
+        cachedSessions = sessions
+        rebuildIndexMap(sessions)
+        return sessions
     }
 
-    // 세션 목록 저장
+    /// 세션 목록 저장 (캐시 동기화)
     static func saveSessions(_ sessions: [SessionRecord]) {
         guard let data = try? JSONEncoder().encode(sessions) else {
             return
         }
         defaults.set(data, forKey: sessionsKey)
-        defaults.synchronize()
+
+        // 캐시 업데이트
+        cachedSessions = sessions
+        rebuildIndexMap(sessions)
+
         notifySessionsUpdated()
+    }
+
+    /// 인덱스 맵 재구성 (O(1) 검색용)
+    private static func rebuildIndexMap(_ sessions: [SessionRecord]) {
+        sessionIndexMap.removeAll(keepingCapacity: true)
+        for (index, session) in sessions.enumerated() {
+            sessionIndexMap[session.id] = index
+        }
+    }
+
+    /// 세션 인덱스 조회 (O(1))
+    private static func index(for sessionId: String) -> Int? {
+        // 캐시 로드 보장
+        _ = loadSessions()
+        return sessionIndexMap[sessionId]
     }
 
     // 세션 변경 알림 전파
@@ -61,7 +110,7 @@ enum SessionStore {
             return
         }
         let resolvedId = trimmedId
-        let projectName = cwd?
+        var projectName = cwd?
             .split(separator: "/")
             .last
             .map(String.init) ?? "Claude Session"
@@ -71,6 +120,14 @@ enum SessionStore {
             detail = cwd
         } else {
             detail = "session: \(trimmedId)"
+        }
+
+        // 기존 세션이 있으면 사용자 설정 이름 보존 (O(1) 검색)
+        var sessions = loadSessions()
+        if let existingIndex = index(for: resolvedId), existingIndex < sessions.count {
+            let existing = sessions[existingIndex]
+            projectName = existing.name
+            sessions.remove(at: existingIndex)
         }
 
         // 새로운 세션 레코드 생성
@@ -87,10 +144,6 @@ enum SessionStore {
             lastResponse: nil
         )
 
-        var sessions = loadSessions()
-        if let index = sessions.firstIndex(where: { $0.id == resolvedId }) {
-            sessions.remove(at: index)
-        }
         sessions.insert(record, at: 0)
         saveSessions(sessions)
     }
@@ -114,7 +167,8 @@ enum SessionStore {
         }
 
         var sessions = loadSessions()
-        guard let index = sessions.firstIndex(where: { $0.id == trimmedId }) else {
+        // O(1) 인덱스 조회
+        guard let index = index(for: trimmedId), index < sessions.count else {
             return
         }
 
@@ -202,7 +256,8 @@ enum SessionStore {
         }
 
         var sessions = loadSessions()
-        guard let index = sessions.firstIndex(where: { $0.id == trimmedId }) else {
+        // O(1) 인덱스 조회
+        guard let index = index(for: trimmedId), index < sessions.count else {
             return
         }
 
@@ -250,7 +305,8 @@ enum SessionStore {
         }
 
         var sessions = loadSessions()
-        guard let index = sessions.firstIndex(where: { $0.id == trimmedId }) else {
+        // O(1) 인덱스 조회
+        guard let index = index(for: trimmedId), index < sessions.count else {
             return
         }
 
@@ -287,23 +343,29 @@ enum SessionStore {
 
     // MARK: - Seen 상태 관리
 
-    /// 확인된 세션 ID 목록 로드
+    /// 확인된 세션 ID 목록 로드 (캐시 우선)
     static func loadSeenSessionIds() -> Set<String> {
-        defaults.synchronize()
+        // 캐시가 있으면 바로 반환
+        if let cached = cachedSeenIds {
+            return cached
+        }
+
         guard let data = defaults.data(forKey: seenSessionsKey),
               let ids = try? JSONDecoder().decode(Set<String>.self, from: data) else {
+            cachedSeenIds = []
             return []
         }
+        cachedSeenIds = ids
         return ids
     }
 
-    /// 확인된 세션 ID 목록 저장
+    /// 확인된 세션 ID 목록 저장 (캐시 동기화)
     private static func saveSeenSessionIds(_ ids: Set<String>) {
         guard let data = try? JSONEncoder().encode(ids) else {
             return
         }
         defaults.set(data, forKey: seenSessionsKey)
-        defaults.synchronize()
+        cachedSeenIds = ids
         notifySessionsUpdated()
     }
 
