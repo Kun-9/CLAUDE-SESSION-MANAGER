@@ -65,6 +65,11 @@ struct SessionTranscriptSplitView: View {
     }
 }
 
+// MARK: - Constants
+
+/// 토큰 뱃지를 숨기는 너비 기준 (340pt 이하에서 숨김)
+private let tokenBadgeHideThreshold: CGFloat = 340
+
 // 좌측 대화 목록 영역 (말풍선 형식)
 struct SessionTranscriptListView: View {
     let entries: [TranscriptEntry]
@@ -80,6 +85,13 @@ struct SessionTranscriptListView: View {
 
     /// 초기 스크롤 완료 여부 (첫 스크롤은 애니메이션 없이)
     @State private var didInitialScroll = false
+    /// 현재 뷰 너비 (토큰 뱃지 숨김 판단용)
+    @State private var viewWidth: CGFloat = 0
+
+    /// 토큰 뱃지 숨김 여부 (너비가 기준 이하면 숨김)
+    private var shouldHideTokenBadge: Bool {
+        viewWidth > 0 && viewWidth <= tokenBadgeHideThreshold
+    }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -131,6 +143,15 @@ struct SessionTranscriptListView: View {
             }
         }
         .frame(minWidth: 280, idealWidth: 320, maxWidth: 360)
+        .background(
+            GeometryReader { geometry in
+                Color.clear
+                    .onAppear { viewWidth = geometry.size.width }
+                    .onChange(of: geometry.size.width) { _, newWidth in
+                        viewWidth = newWidth
+                    }
+            }
+        )
     }
 
     /// 목록 최하단으로 스크롤
@@ -177,6 +198,7 @@ struct SessionTranscriptListView: View {
                 showDetail: showDetail,
                 isSelected: isSelected,
                 isLive: isLive,
+                hideTokenBadge: shouldHideTokenBadge,
                 onTap: { selectedEntryId = entry.id }
             )
         }

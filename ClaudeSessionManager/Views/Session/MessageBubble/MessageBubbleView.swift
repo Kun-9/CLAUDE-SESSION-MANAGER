@@ -21,6 +21,8 @@ struct MessageBubbleView: View {
     let showDetail: Bool
     let isSelected: Bool
     let isLive: Bool
+    /// 토큰 뱃지 숨김 여부 (창 크기가 작을 때)
+    var hideTokenBadge: Bool = false
     let onTap: () -> Void
 
     /// 계산된 스타일 (캐시 사용)
@@ -82,8 +84,8 @@ struct MessageBubbleView: View {
                 // Assistant: 배지 -> 시간 -> 토큰 (왼쪽 정렬)
                 MessageBubbleBadge(label: style.badgeLabel, color: style.badgeColor)
                 timestampOrIndicator
-                // 토큰 사용량 표시 (Assistant만)
-                if let usage = entry.usage {
+                // 토큰 사용량 표시 (Assistant만, 창 크기가 작으면 숨김)
+                if !hideTokenBadge, let usage = entry.usage {
                     // 최종 응답 여부: 캐시에서 O(1) 조회
                     let isFinal = !isIntermediate
                     TokenUsageBadge(
