@@ -5,6 +5,53 @@
 
 import Foundation
 
+/// 도구 입력 정보 (권한 요청 시 표시용)
+struct PermissionToolInput: Codable {
+    let command: String?      // Bash
+    let file_path: String?    // Read, Edit, Write
+    let pattern: String?      // Glob, Grep
+    let path: String?         // Glob, Grep
+    let url: String?          // WebFetch
+    let old_string: String?   // Edit (변경 전)
+    let new_string: String?   // Edit (변경 후)
+    let content: String?      // Write (작성할 내용)
+
+    /// 도구별 요약 정보 반환
+    func summary(for toolName: String) -> String? {
+        switch toolName {
+        case "Bash":
+            return command.map { "$ \($0.prefix(100))" }
+        case "Read", "Edit", "Write":
+            return file_path
+        case "Glob", "Grep":
+            if let pattern = pattern {
+                let pathStr = path ?? "."
+                return "\(pattern) in \(pathStr)"
+            }
+            return nil
+        case "WebFetch":
+            return url
+        default:
+            return nil
+        }
+    }
+
+    /// Edit 도구의 변경 내용이 있는지
+    var hasEditDiff: Bool {
+        old_string != nil || new_string != nil
+    }
+
+    /// Write 도구의 내용이 있는지
+    var hasWriteContent: Bool {
+        content != nil && !content!.isEmpty
+    }
+
+    /// Write 내용 줄 수
+    var writeLineCount: Int {
+        content?.components(separatedBy: "\n").count ?? 0
+    }
+}
+
 /// 권한 요청 정보
 struct PermissionRequest: Codable, Identifiable {
     let id: String
@@ -14,6 +61,7 @@ struct PermissionRequest: Codable, Identifiable {
     let cwd: String?
     let createdAt: TimeInterval
     let questions: [PermissionQuestion]?
+    let toolInput: PermissionToolInput?  // 도구별 상세 정보 (파일 경로, 명령어 등)
 
     /// 선택지가 있는 질문인지 여부
     var hasQuestions: Bool {
@@ -152,7 +200,8 @@ enum PermissionRequestStore {
         sessionName: String? = nil,
         toolName: String?,
         cwd: String?,
-        questions: [PermissionQuestion]? = nil
+        questions: [PermissionQuestion]? = nil,
+        toolInput: PermissionToolInput? = nil
     ) -> String {
         ensureDirectories()
 
@@ -167,7 +216,8 @@ enum PermissionRequestStore {
             toolName: toolName ?? "Unknown",
             cwd: cwd,
             createdAt: Date().timeIntervalSince1970,
-            questions: questions
+            questions: questions,
+            toolInput: toolInput
         )
 
         let filePath = pendingDirectory.appendingPathComponent("\(requestId).json")
@@ -307,36 +357,6 @@ enum PermissionRequestStore {
             deliverImmediately: true
         )
     }
-
-    // MARK: - Cleanup
-
-    /// 만료된 요청/응답 정리 (기본 24시간 후 삭제)
-    static func cleanupExpiredFiles(timeout: TimeInterval = 86400) {
-        let fm = FileManager.default
-        let now = Date().timeIntervalSince1970
-
-        // 만료된 요청 삭제
-        if let files = try? fm.contentsOfDirectory(at: pendingDirectory, includingPropertiesForKeys: nil) {
-            for file in files where file.pathExtension == "json" {
-                if let data = try? Data(contentsOf: file),
-                   let request = try? JSONDecoder().decode(PermissionRequest.self, from: data),
-                   now - request.createdAt > timeout {
-                    try? fm.removeItem(at: file)
-                }
-            }
-        }
-
-        // 만료된 응답 삭제
-        if let files = try? fm.contentsOfDirectory(at: responseDirectory, includingPropertiesForKeys: nil) {
-            for file in files where file.pathExtension == "json" {
-                if let data = try? Data(contentsOf: file),
-                   let response = try? JSONDecoder().decode(PermissionResponse.self, from: data),
-                   now - response.respondedAt > timeout {
-                    try? fm.removeItem(at: file)
-                }
-            }
-        }
-    }
 }
 
 // MARK: - Hook Response Formatter
@@ -365,12 +385,6 @@ extension PermissionRequestStore {
             ]
         ]
 
-        return try? JSONSerialization.data(withJSONObject: response, options: [])
-    }
-
-    /// 기존 allow 응답 (fallback용)
-    static func formatLegacyAllowResponse() -> Data? {
-        let response = ["allow": true]
         return try? JSONSerialization.data(withJSONObject: response, options: [])
     }
 }

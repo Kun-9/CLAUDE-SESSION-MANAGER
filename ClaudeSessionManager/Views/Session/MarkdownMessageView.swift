@@ -1,107 +1,53 @@
 import AppKit
 import Foundation
 import SwiftUI
+import Textual
 
-// 마크다운 텍스트를 블록 단위로 나눠 렌더링하는 뷰
+// MARK: - 파일 설명
+// MarkdownMessageView: 마크다운 텍스트 렌더링 뷰
+// - Textual 라이브러리 기반 전체 렌더링
+// - 코드 블록 문법 하이라이팅 + 복사 버튼
+// - 표, 구분선 커스텀 스타일
+
 struct MarkdownMessageView: View {
-    private let blocks: [MarkdownParser.Block]
-
-    init(text: String) {
-        blocks = MarkdownParser.parseBlocks(text)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(blocks) { block in
-                switch block.kind {
-                case .text(let value):
-                    // 일반 텍스트 블록 렌더링
-                    MarkdownTextBlockView(text: value)
-                case .code(let value):
-                    // 코드 블록 렌더링
-                    MarkdownCodeBlockView(code: value)
-                }
-            }
-        }
-        .textSelection(.enabled)
-    }
-}
-
-// 제목/리스트 등을 포함한 일반 텍스트 렌더링
-private struct MarkdownTextBlockView: View {
     let text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(lines.indices, id: \.self) { index in
-                lineView(lines[index])
-            }
-        }
-    }
-
-    private var lines: [String] {
-        text.split(
-            maxSplits: Int.max,
-            omittingEmptySubsequences: false,
-            whereSeparator: \.isNewline
-        ).map(String.init)
-    }
-
-    @ViewBuilder
-    private func lineView(_ line: String) -> some View {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        if trimmed.isEmpty {
-            Color.clear.frame(height: 6)
-        } else if trimmed.hasPrefix("### ") {
-            Text(String(trimmed.dropFirst(4)))
-                .font(.headline)
-                .foregroundStyle(.primary)
-        } else if trimmed.hasPrefix("## ") {
-            Text(String(trimmed.dropFirst(3)))
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.primary)
-        } else if trimmed.hasPrefix("# ") {
-            Text(String(trimmed.dropFirst(2)))
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(.primary)
-        } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
-            let content = String(trimmed.dropFirst(2))
-            Text("• \(MarkdownParser.parseInlineMarkdown(content))")
-                .font(.body)
-                .foregroundStyle(.primary)
-        } else if let ordered = MarkdownParser.parseOrderedListItem(from: trimmed) {
-            Text("\(ordered.number). \(MarkdownParser.parseInlineMarkdown(ordered.content))")
-                .font(.body)
-                .foregroundStyle(.primary)
-        } else {
-            MarkdownParser.parseInlineMarkdown(trimmed)
-                .font(.body)
-                .foregroundStyle(.primary)
-        }
+        StructuredText(markdown: text)
+            .font(.body)
+            .foregroundStyle(.primary)
+            .textual.codeBlockStyle(CustomCodeBlockStyle())
+            .textual.tableStyle(CustomTableStyle())
+            .textual.tableCellStyle(CustomTableCellStyle())
+            .textual.thematicBreakStyle(CustomThematicBreakStyle())
+            .textual.textSelection(.enabled)
     }
 }
 
-// 코드 블록 전용 렌더링
-private struct MarkdownCodeBlockView: View {
-    let code: String
-    @EnvironmentObject private var toastCenter: ToastCenter
+// MARK: - 코드 블록 스타일 (문법 하이라이팅 + 복사 버튼)
 
-    var body: some View {
+private struct CustomCodeBlockStyle: StructuredText.CodeBlockStyle {
+    func makeBody(configuration: Configuration) -> some View {
         ZStack(alignment: .topTrailing) {
-            Text(code)
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .lineLimit(nil)
-                .padding(10)
-                .padding(.trailing, 24)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // 코드 내용 (Textual 문법 하이라이팅 적용)
+            Overflow {
+                configuration.label
+                    .textual.lineSpacing(.fontScaled(0.2))
+                    .textual.fontScale(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .monospaced()
+                    .padding(12)
+                    .padding(.trailing, 28)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 복사 버튼
             Button {
-                ClipboardService.copy(code)
-                toastCenter.show("클립보드에 복사됨")
+                configuration.codeBlock.copyToPasteboard()
             } label: {
                 Image(systemName: "doc.on.doc")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
                     .padding(6)
             }
             .buttonStyle(.plain)
@@ -110,8 +56,84 @@ private struct MarkdownCodeBlockView: View {
             .accessibilityLabel("복사")
         }
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.primary.opacity(0.06))
         )
+        .textual.blockSpacing(.init(top: 12, bottom: 12))
+    }
+}
+
+// MARK: - 테이블 스타일
+
+private struct CustomTableStyle: StructuredText.TableStyle {
+    private static let borderWidth: CGFloat = 1
+    private static let borderColor = Color.primary.opacity(0.2)
+    private static let rowBackground = Color.primary.opacity(0.03)
+    private static let headerBackground = Color.primary.opacity(0.08)
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .textual.tableCellSpacing(horizontal: Self.borderWidth, vertical: Self.borderWidth)
+            .textual.blockSpacing(.init(top: 16, bottom: 16))
+            .padding(Self.borderWidth)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Self.borderColor, lineWidth: Self.borderWidth)
+            )
+    }
+
+    func makeBackground(layout: StructuredText.TableLayout) -> some View {
+        Canvas { context, _ in
+            for index in layout.rowIndices {
+                let bounds = layout.rowBounds(index)
+                let color: Color
+                if index == 0 {
+                    // 헤더 행 배경
+                    color = Self.headerBackground
+                } else if !index.isMultiple(of: 2) {
+                    // 홀수 데이터 행 배경 (zebra stripe)
+                    color = Self.rowBackground
+                } else {
+                    continue
+                }
+                context.fill(
+                    Path(bounds.integral),
+                    with: .color(color)
+                )
+            }
+        }
+    }
+
+    func makeOverlay(layout: StructuredText.TableLayout) -> some View {
+        Canvas { context, _ in
+            for divider in layout.dividers() {
+                context.fill(
+                    Path(divider),
+                    with: .color(Self.borderColor)
+                )
+            }
+        }
+    }
+}
+
+// MARK: - 테이블 셀 스타일
+
+private struct CustomTableCellStyle: StructuredText.TableCellStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .fontWeight(configuration.row == 0 ? .semibold : .regular)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+    }
+}
+
+// MARK: - 구분선 스타일
+
+private struct CustomThematicBreakStyle: StructuredText.ThematicBreakStyle {
+    func makeBody(configuration _: Configuration) -> some View {
+        Divider()
+            .textual.frame(height: .fontScaled(0.25))
+            .overlay(Color.primary.opacity(0.2))
+            .textual.blockSpacing(.init(top: 16, bottom: 16))
     }
 }

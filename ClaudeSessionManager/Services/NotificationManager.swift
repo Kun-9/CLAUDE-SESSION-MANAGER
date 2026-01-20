@@ -56,7 +56,7 @@ enum NotificationManager {
 
     // CLI 도구용 레거시 알림 경로
     private static func sendLegacy(title: String, body: String) {
-        let script = "display notification \"\(escapeForAppleScript(body))\" with title \"\(escapeForAppleScript(title))\""
+        let script = "display notification \"\(StringEscaping.escapeForAppleScript(body))\" with title \"\(StringEscaping.escapeForAppleScript(title))\""
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         process.arguments = ["-e", script]
@@ -111,12 +111,5 @@ enum NotificationManager {
     // 설정에 따른 사운드 재생 처리
     private static func playSoundIfNeeded() {
         SoundService.playIfEnabled()
-    }
-
-    // AppleScript 문자열 이스케이프 처리
-    private static func escapeForAppleScript(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 }

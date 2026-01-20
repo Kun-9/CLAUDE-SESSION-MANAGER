@@ -3,6 +3,7 @@
 // - LazyVGrid 기반 적응형 열 배치
 // - 창 크기에 따라 2~4열 자동 조절
 // - 그룹핑 모드(All/By Location)와 조합 가능
+// - 권한 요청 변경 시 해당 세션 카드만 업데이트 (SessionGridCell 분리)
 
 import SwiftUI
 
@@ -14,7 +15,7 @@ struct SessionGridView: View {
     var onRename: ((SessionItem, String) -> Void)?
     var onChangeStatus: ((SessionItem, SessionStatus) -> Void)?
 
-    @StateObject private var permissionViewModel = PermissionRequestViewModel()
+    @EnvironmentObject private var permissionViewModel: PermissionRequestViewModel
     @State private var renamingSession: SessionItem?
 
     /// 적응형 격자 열 정의 (최소 120pt, 최대 160pt)
@@ -22,15 +23,12 @@ struct SessionGridView: View {
         GridItem(.adaptive(minimum: 120, maximum: 160), spacing: 10)
     ]
 
-    /// 해당 세션에 대한 권한 요청 찾기
-    private func permissionRequest(for session: SessionItem) -> PermissionRequest? {
-        permissionViewModel.pendingRequests.first { $0.sessionId == session.id }
-    }
-
     var body: some View {
         LazyVGrid(columns: columns, spacing: 12) {
             ForEach(sessions) { session in
-                let request = permissionRequest(for: session)
+                // 직접 딕셔너리 접근으로 SwiftUI 변경 감지 보장 (여러 요청 중 첫 번째 사용)
+                let requests = permissionViewModel.requestsBySessionId[session.id] ?? []
+                let request = requests.first
                 let isRenaming = renamingSession?.id == session.id
 
                 Button {
@@ -105,17 +103,12 @@ struct SessionSectionGridView: View {
     var onRenameSession: ((SessionItem, String) -> Void)?
     var onChangeStatus: ((SessionItem, SessionStatus) -> Void)?
 
-    @StateObject private var permissionViewModel = PermissionRequestViewModel()
+    @EnvironmentObject private var permissionViewModel: PermissionRequestViewModel
     @State private var renamingSession: SessionItem?
 
     private let columns = [
         GridItem(.adaptive(minimum: 120, maximum: 160), spacing: 10)
     ]
-
-    /// 해당 세션에 대한 권한 요청 찾기
-    private func permissionRequest(for session: SessionItem) -> PermissionRequest? {
-        permissionViewModel.pendingRequests.first { $0.sessionId == session.id }
-    }
 
     var body: some View {
         LazyVStack(spacing: 16) {
@@ -135,7 +128,9 @@ struct SessionSectionGridView: View {
                                 onToggleFavorite?(section.id)
                             } : nil,
                             onTerminalTap: {
-                                TerminalService.openDirectory(location: section.sessions.first?.location)
+                                // section.id가 실제 location 경로 (unknown이 아닌 경우)
+                                let location = section.id == "unknown" ? nil : section.id
+                                TerminalService.openDirectory(location: location)
                             }
                         )
                     }
@@ -144,12 +139,14 @@ struct SessionSectionGridView: View {
                     // 펼쳐진 경우 격자로 세션 표시
                     if !collapsedIds.contains(section.id) {
                         LazyVGrid(columns: columns, spacing: 12) {
-                            // 새 세션 추가 카드
-                            NewSessionCard(location: section.sessions.first?.location)
+                            // 새 세션 추가 카드 (section.id가 실제 location 경로)
+                            NewSessionCard(location: section.id == "unknown" ? nil : section.id)
 
                             // 모든 세션 표시 (권한 요청 있으면 오버레이 추가)
                             ForEach(section.sessions) { session in
-                                let request = permissionRequest(for: session)
+                                // 직접 딕셔너리 접근으로 SwiftUI 변경 감지 보장 (여러 요청 중 첫 번째 사용)
+                                let requests = permissionViewModel.requestsBySessionId[session.id] ?? []
+                                let request = requests.first
                                 let isRenaming = renamingSession?.id == session.id
 
                                 Button {
@@ -250,7 +247,7 @@ struct SessionContextMenu: View {
         }
 
         Button {
-            TerminalService.resumeSession(sessionId: session.id, location: session.location)
+            TerminalService.resumeSession(sessionId: session.id, location: session.locationPath)
         } label: {
             Label("대화 이어하기", systemImage: "terminal")
         }

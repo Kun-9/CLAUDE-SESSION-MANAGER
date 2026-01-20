@@ -48,26 +48,6 @@ enum StatisticsStore {
         load().sessions
     }
 
-    /// 모든 일별 통계 레코드 로드
-    static func loadAllDaily() -> [DailyProjectUsage] {
-        load().daily
-    }
-
-    /// 특정 세션의 통계 레코드 로드
-    static func loadSession(sessionId: String) -> SessionUsageRecord? {
-        load().sessions.first { $0.id == sessionId }
-    }
-
-    /// 특정 날짜의 통계 레코드 로드
-    static func loadDaily(date: String) -> [DailyProjectUsage] {
-        load().daily.filter { $0.date == date }
-    }
-
-    /// 특정 프로젝트의 일별 통계 로드
-    static func loadDaily(projectPath: String) -> [DailyProjectUsage] {
-        load().daily.filter { $0.projectPath == projectPath }
-    }
-
     /// 특정 세션의 통계 레코드 삭제
     static func deleteSession(sessionId: String) {
         var data = load()

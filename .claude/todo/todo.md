@@ -180,21 +180,35 @@
 
 ## 마크다운 렌더링
 
-- [ ] 마크다운 렌더링 개선
+- [x] 마크다운 렌더링 개선
   - 설명: 현재 자체 파서(MarkdownParser)는 코드/텍스트 블록 분리만 지원. 라이브러리 검토 후 코드 하이라이팅과 표 렌더링 추가
+  - 해결: **Textual 라이브러리(MarkdownUI 후속)** 도입으로 전체 마크다운 렌더링 대체
+    - macOS 15+ 타겟 업그레이드
+    - StructuredText 기반 전체 렌더링
+    - CustomCodeBlockStyle: 문법 하이라이팅 + 복사 버튼
+    - CustomTableStyle/CustomTableCellStyle: 테이블 스타일링
+    - CustomThematicBreakStyle: 구분선 스타일
+    - Color.primary.opacity() 사용으로 테마 적응형 색상
   - 비용: L (하위 합산)
   - 영향도: Mid
-  - 관련 파일: `ClaudeSessionManager/Utilities/MarkdownParser.swift`, `ClaudeSessionManager/Views/Session/MarkdownMessageView.swift`
+  - 관련 파일: `ClaudeSessionManager/Views/Session/MarkdownMessageView.swift`
+  - 완료일: 2026-01-20
   - 하위 항목:
-    - [ ] 마크다운 라이브러리 검토
+    - [x] 마크다운 라이브러리 검토
       - 설명: swift-markdown(Apple), Ink, Down 등 기존 라이브러리 비교 검토
+      - 해결: Textual 선택 (MarkdownUI 후속, macOS 15+ 필요, 문법 하이라이팅 내장)
       - 비용: S
-    - [ ] 코드 블록 타입별 신택스 하이라이팅
-      - 설명: ` ```swift `, ` ```python ` 등 언어 타입 파싱 후 색상 하이라이팅 적용. **HighlightSwift** 라이브러리 사용 (185개 언어, 30+ 테마, SwiftUI 네이티브)
+      - 완료일: 2026-01-20
+    - [x] 코드 블록 타입별 신택스 하이라이팅
+      - 설명: ` ```swift `, ` ```python ` 등 언어 타입 파싱 후 색상 하이라이팅 적용
+      - 해결: Textual의 CodeBlockStyle + Highlight 내장 기능 사용, 복사 버튼 추가
       - 비용: M
-    - [ ] 마크다운 표(Table) 렌더링
-      - 설명: `| col1 | col2 |` 형식의 GFM 표 파싱 및 렌더링. Grid 또는 HStack/VStack 조합으로 구현
+      - 완료일: 2026-01-20
+    - [x] 마크다운 표(Table) 렌더링
+      - 설명: `| col1 | col2 |` 형식의 GFM 표 파싱 및 렌더링
+      - 해결: Textual의 TableStyle/TableCellStyle 커스터마이징으로 구현
       - 비용: M
+      - 완료일: 2026-01-20
 
 ## Debug 기능
 
@@ -208,17 +222,14 @@
 
 ## 권한 요청 UI
 
-- [ ] [버그] 동시 권한 요청 시 일부만 처리되는 문제
+- [x] [버그] 동시 권한 요청 시 일부만 처리되는 문제
   - 설명: 같은 세션에서 여러 권한 요청(Glob, Bash 등)이 동시에 발생할 때, 앱에서 하나의 요청만 선택/처리하면 나머지 요청들이 UI에서 사라지거나 선택 불가 상태가 됨. 터미널에서는 첫 번째만 처리되고 나머지가 대기 상태로 남음
-  - 재현 시나리오:
-    1. Claude Code가 동시에 Glob + Bash 권한 요청 발생
-    2. 앱에서 첫 번째 요청(Glob)에 Allow 클릭
-    3. 두 번째 요청(Bash)이 UI에서 사라지거나 선택 불가
-    4. 터미널에서는 Bash가 대기 상태로 남음
-  - 원인 추정: 응답 전송 후 같은 sessionId의 모든 pending 요청을 삭제하거나, UI 갱신 시 이전 요청 목록을 덮어쓰는 문제로 추정
-  - 비용: M
+  - 원인: `handlePostToolUse()`에서 단일 도구 완료 시 해당 세션의 **모든** pending 요청을 삭제하여, 아직 처리되지 않은 다른 요청들도 함께 삭제됨
+  - 해결: `handlePostToolUse()`에서 `deletePendingRequests(forSessionId:)` 호출 제거. 각 요청은 앱에서 응답 시 개별적으로 삭제되거나, SessionEnd에서 일괄 삭제됨
+  - 비용: S (실제 변경 라인: 3줄 수정)
   - 영향도: High
-  - 관련 파일: `ClaudeSessionManager/Services/PermissionRequestStore.swift`, `ClaudeSessionManager/Views/Components/PermissionRequestView.swift`
+  - 관련 파일: `ClaudeSessionManager/Services/HookRunner.swift:233-241`
+  - 완료일: 2026-01-19
 
 - [ ] 권한 요청 시 도구 정보 표시 기능
   - 설명: 권한 요청(PermissionRequest) 시 어떤 도구(Read, Edit, Bash 등)의 권한인지 뱃지로 표시. 클릭 시 tool_input 등 상세 정보(파일 경로, 명령어 등)를 팝오버로 표시
@@ -235,6 +246,12 @@
     - [ ] 도구 상세 정보 팝오버 추가
       - 설명: 뱃지 클릭 시 팝오버로 tool_input 상세 표시. Read/Edit는 file_path, Bash는 command 등 도구별 포맷팅
       - 비용: S
+    - [ ] Edit/Write 코드 하이라이팅 개선
+      - 설명: Edit/Write 권한 요청 시 마크다운 라이브러리(Textual)로 코드 하이라이팅할 때 기본 설정이 덮어씌워져 빨강/초록 단색으로 표시됨. Textual 스타일과 diff 색상이 충돌하지 않도록 수정 필요
+      - 비용: S
+    - [ ] Edit 권한 요청 diff 표시 개선
+      - 설명: Edit 도구의 경우 old_string/new_string 전체가 아닌 변경된 행만 표시. 글자색(빨강/초록) 대신 배경색으로 삭제(빨강 배경)/추가(초록 배경) 표시하여 가독성 향상
+      - 비용: M
 
 ## 버그
 
@@ -249,22 +266,31 @@
 
 ## 성능 최적화
 
-- [ ] 긴 대화 세션 스크롤 성능 개선
+- [x] ✅ 긴 대화 세션 스크롤 성능 개선
   - 설명: 대화가 길어진 세션에서 스크롤 시 버벅임 발생. 특히 '상세보기' 토글 활성화 시 성능 저하가 심함
   - 원인 분석:
     - `MessageBubbleView.calculateCumulativeUsage()`가 매 렌더링마다 `allEntries` 순회
     - `MessageBubbleStyle.from()`에서 `TranscriptFilter.isIntermediateAssistant()` 반복 호출
     - 상세보기 활성화 시 표시되는 엔트리 수가 급증하여 문제 악화
+  - 해결:
+    - `TranscriptEntryCache` 구조체 추가 (isIntermediate, cumulativeUsage 캐시)
+    - `TranscriptFilter.buildCache(for:)` 메서드로 전체 entries에 대해 한 번만 O(n) 계산
+    - `SessionTranscriptSplitView`에서 캐시 생성 후 하위 뷰에 전달
+    - `MessageBubbleView`, `MessageBubbleStyle.from()` 캐시 사용으로 O(1) 조회
   - 비용: M
   - 영향도: High
-  - 관련 파일: `ClaudeSessionManager/Views/Session/MessageBubble/MessageBubbleView.swift`, `ClaudeSessionManager/Views/Session/SessionTranscriptSplitView.swift`
+  - 관련 파일: `TranscriptFilter.swift`, `MessageBubbleView.swift`, `MessageBubbleStyle.swift`, `SessionTranscriptSplitView.swift`
+  - 완료일: 2026-01-19
+  - 확인일: 2026-01-19
   - 하위 항목:
-    - [ ] cumulativeUsage 사전 계산 및 캐싱
+    - [x] cumulativeUsage 사전 계산 및 캐싱
       - 설명: `SessionTranscriptListView` 레벨에서 각 entry별 cumulativeUsage를 미리 계산하여 Dictionary로 전달. 개별 셀에서 매번 계산하지 않도록 개선
       - 비용: S
-    - [ ] isIntermediateAssistant 결과 캐싱
+      - 완료일: 2026-01-19
+    - [x] isIntermediateAssistant 결과 캐싱
       - 설명: `TranscriptFilter.isIntermediateAssistant()` 결과를 Dictionary로 캐싱. entries가 변경될 때만 재계산
       - 비용: S
+      - 완료일: 2026-01-19
     - [ ] [선택] 가상화(Virtualization) 강화 검토
       - 설명: LazyVStack이 적용되어 있지만, 복잡한 뷰 재사용 시 성능 이슈 여부 확인. 필요시 추가 최적화
       - 비용: S
@@ -284,6 +310,33 @@
   - 영향도: High
   - 관련 파일: `ClaudeSessionManager/Views/Components/PermissionRequestView.swift:67-95`
   - 완료일: 2026-01-16
+
+- [x] 마크다운 인라인 파싱 최적화
+  - 설명: `MarkdownTextBlockView`에서 `parseInlineMarkdown()`을 각 라인마다 호출하여 스크롤 시 버벅임 발생. `AttributedString(markdown:)` 생성 비용이 높아 대화 목록 스크롤 시 성능 저하가 심각함
+  - 해결: **Textual 라이브러리 도입으로 근본 해결**. 자체 파서(MarkdownParser, MarkdownTextBlockView) 대신 Textual의 StructuredText 사용. 라인별 파싱 없이 전체 마크다운을 한 번에 렌더링
+  - 비용: S (Textual 마이그레이션에 포함)
+  - 영향도: High
+  - 관련 파일: `ClaudeSessionManager/Views/Session/MarkdownMessageView.swift`
+  - 완료일: 2026-01-20
+
+- [ ] Running 세션 무한 애니메이션 최적화
+  - 설명: `CompactStatusIndicator`의 펄스 애니메이션이 `.repeatForever()`로 설정되어 화면에 보이지 않는 카드도 계속 애니메이션 실행. Running 세션이 많으면 프레임 드롭 발생
+  - 비용: S
+  - 영향도: High
+  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionCardView.swift:224-250`
+  - 개선 방안:
+    - `onAppear/onDisappear`로 애니메이션 시작/중지 제어
+    - 또는 `TimelineView` 사용으로 시스템 최적화 활용
+
+- [ ] 이벤트 모니터 중복 등록 제거
+  - 설명: `CommandHoverResumeOverlay`에서 각 세션 카드마다 `NSEvent.addLocalMonitorForEvents()` 호출. 격자에 100개 카드 있으면 100개의 전역 이벤트 모니터가 등록되어 키 입력마다 100개 클로저 실행
+  - 비용: M
+  - 영향도: High
+  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionCardView.swift:338-369`
+  - 개선 방안:
+    - 부모 뷰(SessionGridView)에서 단일 모니터 등록
+    - `@Environment` 또는 `@EnvironmentObject`로 Command 키 상태 공유
+    - 개별 카드는 상태 조회만 수행
 
 ## UI 일관성
 
@@ -365,16 +418,35 @@
       - 비용: S
       - 완료일: 2026-01-17
 
-- [ ] 프롬프트별 합산 토큰 표시
+- [x] ✅ 프롬프트별 합산 토큰 표시
   - 설명: 최종 응답 상세보기에서 해당 프롬프트(user 입력)에 대한 모든 중간 응답 토큰을 합산하여 표시. 현재는 각 응답마다 개별 토큰만 표시되어 전체 비용 파악이 어려움
-  - 배경:
-    - 각 API 호출은 고유한 `requestId`를 가지며 별도의 토큰 사용량이 있음
-    - 예: Read tool(50) + Edit tool(60) + 최종 응답(30) = 총 140 토큰
-    - 일반 모드에서는 최종 응답(30)만 보이지만, 실제 비용은 140 토큰
-    - 참고: `.claude/doc-local.md`의 "토큰 사용량 계산 로직" 섹션
+  - 해결:
+    - `TranscriptFilter.buildCache(for:)`에서 프롬프트 그룹별 누적 토큰 사전 계산
+    - `TranscriptEntryCache.cumulativeUsage`에 최종 응답별 누적 토큰 저장
+    - `TokenUsageBadge`에 `cumulativeUsage` 파라미터 추가
+    - 최종 응답에만 `(Σ총합 · 실제)` 형식으로 보라색 누적 토큰 표시
+    - 팝오버에 "Σ Total", "Σ Actual" 행 추가
   - 비용: S
   - 영향도: Mid
-  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionDetailSheet.swift`, `ClaudeSessionManager/Views/Session/MessageBubble/MessageBubbleView.swift`, `ClaudeSessionManager/Services/Transcript/TranscriptFilter.swift`
+  - 관련 파일: `TranscriptFilter.swift`, `MessageBubbleView.swift`
+  - 완료일: 2026-01-19
+  - 확인일: 2026-01-19
+
+- [ ] 세션 상세에서 채팅 검색 기능
+  - 설명: 세션 상세(SessionTranscriptSplitView)에서 대화 내용을 검색하는 기능. 검색창에 키워드 입력 시 해당 키워드가 포함된 메시지를 필터링하거나 하이라이트 표시
+  - 비용: M
+  - 영향도: Mid
+  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionTranscriptSplitView.swift`, `ClaudeSessionManager/Views/Session/MessageBubble/MessageBubbleView.swift`
+  - 하위 항목:
+    - [ ] 검색 UI 추가 (검색창 + 네비게이션)
+      - 설명: 대화 목록 상단에 검색창 추가. Cmd+F 단축키 지원. 이전/다음 버튼으로 검색 결과 네비게이션
+      - 비용: S
+    - [ ] 검색 결과 하이라이트
+      - 설명: 검색 키워드가 포함된 메시지를 하이라이트 표시. 현재 선택된 검색 결과는 더 강조
+      - 비용: S
+    - [ ] 검색 결과 필터링/점프
+      - 설명: 검색 결과 개수 표시 (예: "3/15"). 이전/다음 버튼 또는 Enter/Shift+Enter로 검색 결과 간 이동. 해당 메시지로 자동 스크롤
+      - 비용: M
 
 ## 앱 구조
 
@@ -455,3 +527,28 @@
       - 설명: Stop 훅 시 transcript.jsonl 파싱 의존도 검토. 훅 페이로드 정보만 사용하거나 아카이빙을 선택적 기능으로 분리 가능성 검토
       - 비용: L (구조 변경 시)
       - 관련 파일: `TranscriptArchiveService.swift`, `HookRunner.swift`
+
+## SubAgent 추적
+
+- [ ] SubAgent 추적 지원 기능
+  - 설명: Claude Code의 Task 도구로 생성되는 subAgent(하위 에이전트)를 추적하고 시각화. subAgent 메시지 구분, 토큰 집계, 생명주기 추적, 계층 구조 시각화 지원
+  - 비용: L (하위 합산)
+  - 영향도: High
+  - 관련 파일: `TranscriptEntry.swift`, `TranscriptArchiveService.swift`, `MessageBubbleView.swift`, `HookRunner.swift`
+  - 하위 항목:
+    - [ ] 트랜스크립트에서 subAgent 메시지 구분 표시
+      - 설명: transcript.jsonl의 subAgent 관련 필드(parent_session_id, subagent_type 등) 파싱. TranscriptEntry에 subAgent 정보 필드 추가. UI에서 들여쓰기/배경색으로 메인 에이전트와 구분 표시
+      - 비용: M
+      - 관련 파일: `TranscriptEntry.swift`, `TranscriptArchiveService.swift`, `MessageBubbleView.swift`
+    - [ ] subAgent별 토큰 사용량 분리 집계
+      - 설명: 메인 에이전트와 각 subAgent의 토큰 사용량을 별도로 추적. TokenUsage에 subAgent 구분 추가. 통계 뷰에서 메인/subAgent별 비용 표시
+      - 비용: M
+      - 관련 파일: `TokenUsage.swift`, `TranscriptFilter.swift`, `StatisticsService.swift`
+    - [ ] subAgent 시작/종료 이벤트 표시
+      - 설명: SubagentStop 훅 활용하여 subAgent 생명주기 추적. 트랜스크립트에 "subAgent 시작: Explore", "subAgent 종료" 등 이벤트 표시. 실행 시간, 결과 요약 포함
+      - 비용: M
+      - 관련 파일: `HookRunner.swift`, `TranscriptEntry.swift`, `MessageBubbleView.swift`
+    - [ ] subAgent 계층 구조 시각화
+      - 설명: 중첩된 subAgent(subAgent가 subAgent 호출) 관계를 트리 형태로 시각화. 접기/펼치기 지원. 각 노드에 에이전트 타입, 상태, 토큰 사용량 표시
+      - 비용: L
+      - 관련 파일: `SessionTranscriptSplitView.swift`, 신규 `SubAgentTreeView.swift`

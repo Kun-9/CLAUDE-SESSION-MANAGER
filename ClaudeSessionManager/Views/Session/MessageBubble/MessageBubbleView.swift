@@ -16,20 +16,33 @@ private let bubbleTimestampFormatter: DateFormatter = {
 /// 메시지 말풍선 뷰 (User/Assistant용)
 struct MessageBubbleView: View {
     let entry: TranscriptEntry
-    let allEntries: [TranscriptEntry]
+    /// 성능 최적화: 사전 계산된 엔트리 메타데이터 캐시
+    let entryCache: TranscriptEntryCache
     let showDetail: Bool
     let isSelected: Bool
     let isLive: Bool
+    /// 토큰 뱃지 숨김 여부 (창 크기가 작을 때)
+    var hideTokenBadge: Bool = false
     let onTap: () -> Void
 
-    /// 계산된 스타일
+    /// 계산된 스타일 (캐시 사용)
     private var style: MessageBubbleStyle {
-        MessageBubbleStyle.from(entry: entry, allEntries: allEntries, showDetail: showDetail)
+        MessageBubbleStyle.from(entry: entry, entryCache: entryCache, showDetail: showDetail)
     }
 
     /// User인지 여부
     private var isUser: Bool {
         style.alignment == .trailing
+    }
+
+    /// 중간 응답 여부 (캐시 조회, O(1))
+    private var isIntermediate: Bool {
+        entryCache.isIntermediate[entry.id] ?? false
+    }
+
+    /// 누적 토큰 사용량 (캐시 조회, O(1))
+    private var cumulativeUsage: TokenUsage? {
+        entryCache.cumulativeUsage[entry.id]
     }
 
     var body: some View {
@@ -71,64 +84,17 @@ struct MessageBubbleView: View {
                 // Assistant: 배지 -> 시간 -> 토큰 (왼쪽 정렬)
                 MessageBubbleBadge(label: style.badgeLabel, color: style.badgeColor)
                 timestampOrIndicator
-                // 토큰 사용량 표시 (Assistant만)
-                if let usage = entry.usage {
-                    // 최종 응답 여부: TranscriptFilter의 기존 로직 활용
-                    let isFinal = !TranscriptFilter.isIntermediateAssistant(entry, in: allEntries)
+                // 토큰 사용량 표시 (Assistant만, 창 크기가 작으면 숨김)
+                if !hideTokenBadge, let usage = entry.usage {
+                    // 최종 응답 여부: 캐시에서 O(1) 조회
+                    let isFinal = !isIntermediate
                     TokenUsageBadge(
                         usage: usage,
-                        cumulativeUsage: isFinal ? calculateCumulativeUsage() : nil
+                        cumulativeUsage: isFinal ? cumulativeUsage : nil
                     )
                 }
             }
         }
-    }
-
-    // MARK: - Cumulative Usage Calculation
-
-    /// 현재 프롬프트 내 누적 토큰 계산
-    /// - TranscriptFilter.findFinalAssistantIds와 동일한 그룹 기준 사용
-    private func calculateCumulativeUsage() -> TokenUsage {
-        guard let currentIndex = allEntries.firstIndex(where: { $0.id == entry.id }) else {
-            return .zero
-        }
-
-        // 현재 entry 이전의 마지막 "직접 사용자 입력" 찾기
-        var promptStartIndex = currentIndex
-        for i in stride(from: currentIndex - 1, through: 0, by: -1) {
-            if TranscriptFilter.isDirectUserInput(allEntries[i]) {
-                promptStartIndex = i + 1
-                break
-            }
-            if i == 0 {
-                promptStartIndex = 0
-            }
-        }
-
-        // 다음 "직접 사용자 입력" 또는 끝까지 범위 설정
-        var promptEndIndex = allEntries.count - 1
-        for i in (currentIndex + 1)..<allEntries.count {
-            if TranscriptFilter.isDirectUserInput(allEntries[i]) {
-                promptEndIndex = i - 1
-                break
-            }
-        }
-
-        // 프롬프트 내 모든 assistant 응답의 토큰 합산 (requestId 중복 제거)
-        var cumulativeUsage = TokenUsage.zero
-        var seenRequestIds = Set<String>()
-        for i in promptStartIndex...promptEndIndex {
-            if allEntries[i].role == .assistant, let usage = allEntries[i].usage {
-                // requestId가 있으면 중복 체크 (같은 API 요청의 여러 엔트리 방지)
-                if let requestId = allEntries[i].requestId {
-                    if seenRequestIds.contains(requestId) { continue }
-                    seenRequestIds.insert(requestId)
-                }
-                cumulativeUsage = cumulativeUsage.adding(usage)
-            }
-        }
-
-        return cumulativeUsage
     }
 
     /// 말풍선 내용

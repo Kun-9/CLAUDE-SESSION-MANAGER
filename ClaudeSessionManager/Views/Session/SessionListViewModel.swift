@@ -1,8 +1,9 @@
 // MARK: - 파일 설명
 // SessionListViewModel: 세션 목록 화면의 ViewModel
 // - 세션 목록 로드 및 상태 관리
-// - 그룹핑 모드(All/By Location) 및 레이아웃 모드(List/Grid) 관리
+// - 그룹핑 모드(All/By Location) 관리
 // - 섹션 접힘 상태 관리
+// - filteredSessions, sessionSections 캐싱으로 성능 최적화
 
 import Combine
 import Foundation
@@ -16,22 +17,6 @@ enum SessionListMode: String, CaseIterable, Identifiable {
     case byLocation = "By Location"
 
     var id: String { rawValue }
-}
-
-/// 세션 목록 레이아웃 모드
-enum SessionLayoutMode: String, CaseIterable, Identifiable {
-    case list = "List"
-    case grid = "Grid"
-
-    var id: String { rawValue }
-
-    /// SF Symbol 아이콘 이름
-    var icon: String {
-        switch self {
-        case .list: return "list.bullet"
-        case .grid: return "square.grid.2x2"
-        }
-    }
 }
 
 /// 세션 상태 필터 (다중 선택 가능)
@@ -71,16 +56,21 @@ final class SessionListViewModel: ObservableObject {
     @Published var listMode: SessionListMode = .byLocation {
         didSet { saveListMode() }
     }
-    @Published var layoutMode: SessionLayoutMode = .list {
-        didSet { saveLayoutMode() }
-    }
     /// 선택된 상태 필터들 (빈 Set = 전체 표시)
     @Published var statusFilters: Set<SessionStatusFilter> = [] {
-        didSet { saveStatusFilter() }
+        didSet {
+            saveStatusFilter()
+            updateDerivedData()
+        }
     }
     @Published var collapsedSectionIds: Set<String> = [] {
         didSet { saveCollapsedSections() }
     }
+
+    /// 캐싱된 필터링 결과 (sessions/statusFilters 변경 시 갱신)
+    @Published private(set) var filteredSessions: [SessionItem] = []
+    /// 캐싱된 섹션 그룹 (filteredSessions 변경 시 갱신)
+    @Published private(set) var sessionSections: [SessionSection] = []
 
     // MARK: - Private Properties
 
@@ -100,6 +90,8 @@ final class SessionListViewModel: ObservableObject {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor [weak self] in
+                // 외부 변경 시 캐시 무효화 후 로드
+                SessionStore.invalidateCache()
                 self?.loadSessions()
             }
         }
@@ -119,6 +111,21 @@ final class SessionListViewModel: ObservableObject {
         sessions = records
             .map(SessionItem.init(record:))
             .filter { $0.status != .normal }
+        updateDerivedData()
+    }
+
+    /// 파생 데이터 갱신 (filteredSessions, sessionSections)
+    private func updateDerivedData() {
+        // 필터링
+        if statusFilters.isEmpty {
+            filteredSessions = sessions
+        } else {
+            filteredSessions = sessions.filter { session in
+                statusFilters.contains { $0.matches(session.status) }
+            }
+        }
+        // 그룹핑
+        sessionSections = SessionGroupingService.groupByLocation(filteredSessions)
     }
 
     /// 세션 삭제 (아카이브 + 세션 레코드 삭제, Claude Code 파일은 설정에 따라)
@@ -144,21 +151,6 @@ final class SessionListViewModel: ObservableObject {
         loadSessions()
     }
 
-    /// 필터링된 세션 목록 (빈 필터 = 전체 표시)
-    var filteredSessions: [SessionItem] {
-        if statusFilters.isEmpty {
-            return sessions
-        }
-        return sessions.filter { session in
-            statusFilters.contains { $0.matches(session.status) }
-        }
-    }
-
-    /// 위치별 세션 섹션 반환 (필터 적용)
-    var sessionSections: [SessionSection] {
-        SessionGroupingService.groupByLocation(filteredSessions)
-    }
-
     /// 섹션 접힘 상태 확인
     func isSectionCollapsed(_ id: String) -> Bool {
         collapsedSectionIds.contains(id)
@@ -182,12 +174,10 @@ final class SessionListViewModel: ObservableObject {
 
     // MARK: - Private Helpers
 
-    /// 사용자 설정 로드 (그룹핑 모드, 레이아웃 모드, 필터, 접힘 상태)
+    /// 사용자 설정 로드 (그룹핑 모드, 필터, 접힘 상태)
     private func loadPreferences() {
         let storedMode = SettingsStore.defaults.string(forKey: SettingsKeys.sessionListMode) ?? ""
         listMode = SessionListMode(rawValue: storedMode) ?? .byLocation
-        let storedLayout = SettingsStore.defaults.string(forKey: SettingsKeys.sessionLayoutMode) ?? ""
-        layoutMode = SessionLayoutMode(rawValue: storedLayout) ?? .list
         // 다중 선택 필터 로드 (JSON 배열)
         if let storedFilter = SettingsStore.defaults.string(forKey: SettingsKeys.sessionStatusFilter),
            let data = storedFilter.data(using: .utf8),
@@ -202,10 +192,6 @@ final class SessionListViewModel: ObservableObject {
 
     private func saveListMode() {
         SettingsStore.defaults.set(listMode.rawValue, forKey: SettingsKeys.sessionListMode)
-    }
-
-    private func saveLayoutMode() {
-        SettingsStore.defaults.set(layoutMode.rawValue, forKey: SettingsKeys.sessionLayoutMode)
     }
 
     private func saveStatusFilter() {

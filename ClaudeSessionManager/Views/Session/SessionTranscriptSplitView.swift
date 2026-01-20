@@ -24,11 +24,15 @@ struct SessionTranscriptSplitView: View {
     // 실시간 상태 (liveEntryId 카드에 인디케이터 표시용)
     var isRunning: Bool = false
 
+    /// 성능 최적화: 엔트리 메타데이터 캐시 (allEntries 변경 시에만 재계산)
+    @State private var entryCache: TranscriptEntryCache = .empty
+
     var body: some View {
         HStack(spacing: 16) {
             SessionTranscriptListView(
                 entries: entries,
                 allEntries: allEntries,
+                entryCache: entryCache,
                 selectedEntryId: $selectedEntryId,
                 showDetail: $showDetail,
                 isRunning: isRunning
@@ -37,19 +41,42 @@ struct SessionTranscriptSplitView: View {
             SessionTranscriptDetailView(
                 entries: entries,
                 allEntries: allEntries,
+                entryCache: entryCache,
                 selectedEntryId: $selectedEntryId,
                 showDetail: showDetail
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            rebuildCacheIfNeeded()
+        }
+        .onChange(of: allEntries.count) { _, _ in
+            rebuildCacheIfNeeded()
+        }
+        .onChange(of: allEntries.first?.id) { _, _ in
+            // 세션 전환 감지 (첫 번째 엔트리 ID 변경)
+            rebuildCacheIfNeeded()
+        }
+    }
+
+    /// 캐시 재계산 (allEntries 변경 시 호출)
+    private func rebuildCacheIfNeeded() {
+        entryCache = TranscriptFilter.buildCache(for: allEntries)
     }
 }
+
+// MARK: - Constants
+
+/// 토큰 뱃지를 숨기는 너비 기준 (340pt 이하에서 숨김)
+private let tokenBadgeHideThreshold: CGFloat = 340
 
 // 좌측 대화 목록 영역 (말풍선 형식)
 struct SessionTranscriptListView: View {
     let entries: [TranscriptEntry]
     /// 전체 엔트리 (중간 응답 판별용)
     let allEntries: [TranscriptEntry]
+    /// 성능 최적화: 사전 계산된 엔트리 메타데이터 캐시
+    let entryCache: TranscriptEntryCache
     @Binding var selectedEntryId: UUID?
     @Binding var showDetail: Bool
 
@@ -58,6 +85,13 @@ struct SessionTranscriptListView: View {
 
     /// 초기 스크롤 완료 여부 (첫 스크롤은 애니메이션 없이)
     @State private var didInitialScroll = false
+    /// 현재 뷰 너비 (토큰 뱃지 숨김 판단용)
+    @State private var viewWidth: CGFloat = 0
+
+    /// 토큰 뱃지 숨김 여부 (너비가 기준 이하면 숨김)
+    private var shouldHideTokenBadge: Bool {
+        viewWidth > 0 && viewWidth <= tokenBadgeHideThreshold
+    }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -109,6 +143,15 @@ struct SessionTranscriptListView: View {
             }
         }
         .frame(minWidth: 280, idealWidth: 320, maxWidth: 360)
+        .background(
+            GeometryReader { geometry in
+                Color.clear
+                    .onAppear { viewWidth = geometry.size.width }
+                    .onChange(of: geometry.size.width) { _, newWidth in
+                        viewWidth = newWidth
+                    }
+            }
+        )
     }
 
     /// 목록 최하단으로 스크롤
@@ -151,10 +194,11 @@ struct SessionTranscriptListView: View {
             // User/Assistant는 말풍선 형식
             MessageBubbleView(
                 entry: entry,
-                allEntries: allEntries,
+                entryCache: entryCache,
                 showDetail: showDetail,
                 isSelected: isSelected,
                 isLive: isLive,
+                hideTokenBadge: shouldHideTokenBadge,
                 onTap: { selectedEntryId = entry.id }
             )
         }
@@ -166,6 +210,8 @@ struct SessionTranscriptDetailView: View {
     let entries: [TranscriptEntry]
     /// 전체 엔트리 (중간 응답 판별용)
     let allEntries: [TranscriptEntry]
+    /// 성능 최적화: 사전 계산된 엔트리 메타데이터 캐시
+    let entryCache: TranscriptEntryCache
     @Binding var selectedEntryId: UUID?
     let showDetail: Bool
     @EnvironmentObject private var toastCenter: ToastCenter
@@ -175,7 +221,7 @@ struct SessionTranscriptDetailView: View {
             if let selectedEntry = selectedEntry {
                 let style = MessageBubbleStyle.from(
                     entry: selectedEntry,
-                    allEntries: allEntries,
+                    entryCache: entryCache,
                     showDetail: showDetail
                 )
                 HStack {
