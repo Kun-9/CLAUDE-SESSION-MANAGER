@@ -624,12 +624,15 @@ private struct BashCodeBlock: View {
 // MARK: - DiffCodeBlock
 
 /// Diff 코드 블럭 (삭제/추가 표시)
+/// - MarkdownCodeBlockView 스타일 적용: 복사 버튼 + 둥근 배경
 /// - 짧은 내용: 스크롤 없이 전체 표시
 /// - 긴 내용: 스크롤 가능
 private struct DiffCodeBlock: View {
     let label: String
     let text: String
     let color: Color
+
+    @EnvironmentObject private var toastCenter: ToastCenter
 
     /// 최대 높이 (스크롤 필요 시)
     private let maxHeight: CGFloat = 300
@@ -650,39 +653,61 @@ private struct DiffCodeBlock: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(color)
 
-            if needsScroll {
-                // 긴 내용: ScrollView 사용
-                ScrollView(.vertical) {
+            ZStack(alignment: .topTrailing) {
+                if needsScroll {
+                    // 긴 내용: ScrollView 사용
+                    ScrollView(.vertical) {
+                        codeText
+                    }
+                    .frame(maxHeight: maxHeight)
+                } else {
+                    // 짧은 내용: 스크롤 없이 표시
                     codeText
                 }
-                .frame(maxHeight: maxHeight)
-                .background(color.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-            } else {
-                // 짧은 내용: 스크롤 없이 표시
-                codeText
-                    .background(color.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                // 복사 버튼
+                Button {
+                    ClipboardService.copy(text)
+                    toastCenter.show("클립보드에 복사됨")
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(color)
+                        .padding(5)
+                        .background(Circle().fill(color.opacity(0.15)))
+                }
+                .buttonStyle(.plain)
+                .padding(6)
+                .help("복사")
             }
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(color.opacity(0.1))
+            )
         }
     }
 
     private var codeText: some View {
         Text(text)
-            .font(.caption.monospaced())
+            .font(.system(.caption, design: .monospaced))
             .foregroundStyle(color.opacity(0.9))
             .fixedSize(horizontal: false, vertical: true)
+            .lineLimit(nil)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
+            .padding(10)
+            .padding(.trailing, 24)
     }
 }
 
 // MARK: - WriteCodeBlock
 
 /// Write 코드 블럭 (파일 내용 미리보기)
+/// - MarkdownCodeBlockView 스타일 적용: 복사 버튼 + 둥근 배경
 private struct WriteCodeBlock: View {
     let lineCount: Int
     let content: String
+
+    @EnvironmentObject private var toastCenter: ToastCenter
 
     /// 최대 높이
     private let maxHeight: CGFloat = 400
@@ -698,28 +723,47 @@ private struct WriteCodeBlock: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            if needsScroll {
-                ScrollView(.vertical) {
+            ZStack(alignment: .topTrailing) {
+                if needsScroll {
+                    ScrollView(.vertical) {
+                        codeText
+                    }
+                    .frame(maxHeight: maxHeight)
+                } else {
                     codeText
                 }
-                .frame(maxHeight: maxHeight)
-                .background(Color.blue.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-            } else {
-                codeText
-                    .background(Color.blue.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                // 복사 버튼
+                Button {
+                    ClipboardService.copy(content)
+                    toastCenter.show("클립보드에 복사됨")
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.blue)
+                        .padding(5)
+                        .background(Circle().fill(Color.blue.opacity(0.15)))
+                }
+                .buttonStyle(.plain)
+                .padding(6)
+                .help("복사")
             }
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.primary.opacity(0.06))
+            )
         }
     }
 
     private var codeText: some View {
         Text(content)
-            .font(.caption.monospaced())
-            .foregroundStyle(.primary.opacity(0.9))
+            .font(.system(.caption, design: .monospaced))
+            .foregroundStyle(.primary)
             .fixedSize(horizontal: false, vertical: true)
+            .lineLimit(nil)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
+            .padding(10)
+            .padding(.trailing, 24)
     }
 }
 

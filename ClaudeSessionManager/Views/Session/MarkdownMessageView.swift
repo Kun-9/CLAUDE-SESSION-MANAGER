@@ -20,7 +20,7 @@ struct MarkdownMessageView: View {
             .textual.tableStyle(CustomTableStyle())
             .textual.tableCellStyle(CustomTableCellStyle())
             .textual.thematicBreakStyle(CustomThematicBreakStyle())
-            .textSelection(.enabled)
+            .textual.textSelection(.enabled)
     }
 }
 
@@ -69,6 +69,7 @@ private struct CustomTableStyle: StructuredText.TableStyle {
     private static let borderWidth: CGFloat = 1
     private static let borderColor = Color.primary.opacity(0.2)
     private static let rowBackground = Color.primary.opacity(0.03)
+    private static let headerBackground = Color.primary.opacity(0.08)
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -83,10 +84,21 @@ private struct CustomTableStyle: StructuredText.TableStyle {
 
     func makeBackground(layout: StructuredText.TableLayout) -> some View {
         Canvas { context, _ in
-            for bounds in layout.rowIndices.dropFirst().filter({ $0.isMultiple(of: 2) }).map({ layout.rowBounds($0) }) {
+            for index in layout.rowIndices {
+                let bounds = layout.rowBounds(index)
+                let color: Color
+                if index == 0 {
+                    // 헤더 행 배경
+                    color = Self.headerBackground
+                } else if !index.isMultiple(of: 2) {
+                    // 홀수 데이터 행 배경 (zebra stripe)
+                    color = Self.rowBackground
+                } else {
+                    continue
+                }
                 context.fill(
                     Path(bounds.integral),
-                    with: .color(Self.rowBackground)
+                    with: .color(color)
                 )
             }
         }
@@ -112,7 +124,6 @@ private struct CustomTableCellStyle: StructuredText.TableCellStyle {
             .fontWeight(configuration.row == 0 ? .semibold : .regular)
             .padding(.vertical, 6)
             .padding(.horizontal, 10)
-            .background(configuration.row == 0 ? Color.primary.opacity(0.06) : Color.clear)
     }
 }
 
