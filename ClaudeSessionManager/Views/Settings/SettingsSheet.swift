@@ -69,9 +69,7 @@ struct SettingsSheet: View {
     // Claude 탭 상태
     @State private var claudeStatus: String = ""
     @State private var claudeCanApply: Bool = false
-    @State private var showClaudePreview: Bool = false
-    @State private var previewAfterLines: [PreviewLine] = []
-    @State private var previewError: String?
+    @State private var claudePreviewData: ClaudePreviewData?
     @State private var showApplyConfirmation: Bool = false
 
     @EnvironmentObject private var debugLogStore: DebugLogStore
@@ -101,11 +99,11 @@ struct SettingsSheet: View {
                 NSApp.keyWindow?.makeFirstResponder(nil)
             }
         }
-        .sheet(isPresented: $showClaudePreview) {
+        .sheet(item: $claudePreviewData) { data in
             ClaudePreviewSheet(
-                afterLines: previewAfterLines,
-                errorMessage: previewError,
-                onClose: { showClaudePreview = false }
+                afterLines: data.afterLines,
+                errorMessage: data.errorMessage,
+                onClose: { claudePreviewData = nil }
             )
         }
     }
@@ -406,16 +404,15 @@ struct SettingsSheet: View {
                             } else {
                                 preview = ([], false, "Unable to resolve the app executable path.", "Unable to resolve the app executable path.")
                             }
-                            previewAfterLines = preview.after
-                            previewError = preview.error
                             claudeCanApply = preview.canApply
                             if let status = preview.statusMessage {
                                 claudeStatus = status
                             }
-                            // 상태 업데이트 후 다음 런루프에서 시트 표시 (타이밍 문제 방지)
-                            DispatchQueue.main.async {
-                                showClaudePreview = true
-                            }
+                            // .sheet(item:) 패턴으로 데이터와 표시를 동시에 설정
+                            claudePreviewData = ClaudePreviewData(
+                                afterLines: preview.after,
+                                errorMessage: preview.error
+                            )
                         }
                         .buttonStyle(.bordered)
 
@@ -558,6 +555,16 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
 
 private enum FocusField: Hashable {
     case preToolUseTools
+}
+
+// MARK: - Claude Preview Data
+
+/// Claude Preview 시트에 전달할 데이터 래퍼
+/// - .sheet(item:) 패턴 사용으로 상태 캡처 타이밍 문제 해결
+private struct ClaudePreviewData: Identifiable {
+    let id = UUID()
+    let afterLines: [PreviewLine]
+    let errorMessage: String?
 }
 
 // MARK: - Claude Preview Sheet
