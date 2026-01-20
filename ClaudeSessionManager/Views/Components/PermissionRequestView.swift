@@ -13,8 +13,8 @@ import SwiftUI
 final class PermissionRequestViewModel: ObservableObject {
     @Published var pendingRequests: [PermissionRequest] = []
 
-    /// 세션 ID별 권한 요청 매핑 (O(1) 검색용)
-    @Published private(set) var requestsBySessionId: [String: PermissionRequest] = [:]
+    /// 세션 ID별 권한 요청 매핑 (O(1) 검색용, 여러 요청 지원)
+    @Published private(set) var requestsBySessionId: [String: [PermissionRequest]] = [:]
 
     /// Observer 참조 (deinit에서 안전한 정리를 위해 nonisolated(unsafe) 사용)
     nonisolated(unsafe) private var permissionObserver: NSObjectProtocol?
@@ -45,13 +45,18 @@ final class PermissionRequestViewModel: ObservableObject {
     func loadPendingRequests() {
         let requests = PermissionRequestStore.loadPendingRequests()
         pendingRequests = requests
-        // O(1) 검색을 위한 딕셔너리 갱신 (중복 sessionId는 첫 번째 요청만 유지)
-        requestsBySessionId = Dictionary(requests.map { ($0.sessionId, $0) }) { first, _ in first }
+        // O(1) 검색을 위한 딕셔너리 갱신 (세션당 여러 요청 지원)
+        requestsBySessionId = Dictionary(grouping: requests) { $0.sessionId }
     }
 
-    /// 특정 세션의 권한 요청 조회 (O(1))
-    func permissionRequest(for sessionId: String) -> PermissionRequest? {
-        requestsBySessionId[sessionId]
+    /// 특정 세션의 권한 요청 목록 조회 (O(1))
+    func permissionRequests(for sessionId: String) -> [PermissionRequest] {
+        requestsBySessionId[sessionId] ?? []
+    }
+
+    /// 특정 세션의 첫 번째 권한 요청 조회 (UI 표시용, O(1))
+    func firstPermissionRequest(for sessionId: String) -> PermissionRequest? {
+        requestsBySessionId[sessionId]?.first
     }
 
     /// 요청 허용 (선택지 응답 포함)

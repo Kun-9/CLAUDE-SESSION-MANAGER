@@ -214,6 +214,16 @@ enum HookRunner {
         if let response = PermissionRequestStore.waitForResponse(requestId: requestId) {
             // 사용자가 선택함 → hookSpecificOutput 형식으로 응답
             writePermissionResponse(decision: response.decision, message: response.message, answers: response.answers)
+
+            // 해당 세션의 다른 pending 요청이 있는지 확인
+            let remainingRequests = PermissionRequestStore.loadPendingRequests()
+                .filter { $0.sessionId == event.session_id }
+
+            if remainingRequests.isEmpty {
+                // 모든 요청 처리됨 → .running으로 변경
+                SessionStore.updateSessionStatus(sessionId: event.session_id, status: .running)
+            }
+            // 아직 pending 있으면 .permission 상태 유지
         } else {
             // pending 삭제됨 (세션 종료 또는 터미널에서 처리) → Claude Code 자체 UI로 fallback
             // 세션 상태 업데이트

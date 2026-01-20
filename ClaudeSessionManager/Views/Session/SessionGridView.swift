@@ -26,8 +26,9 @@ struct SessionGridView: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 12) {
             ForEach(sessions) { session in
-                // 직접 딕셔너리 접근으로 SwiftUI 변경 감지 보장
-                let request = permissionViewModel.requestsBySessionId[session.id]
+                // 직접 딕셔너리 접근으로 SwiftUI 변경 감지 보장 (여러 요청 중 첫 번째 사용)
+                let requests = permissionViewModel.requestsBySessionId[session.id] ?? []
+                let request = requests.first
                 let isRenaming = renamingSession?.id == session.id
 
                 Button {
@@ -143,8 +144,9 @@ struct SessionSectionGridView: View {
 
                             // 모든 세션 표시 (권한 요청 있으면 오버레이 추가)
                             ForEach(section.sessions) { session in
-                                // 직접 딕셔너리 접근으로 SwiftUI 변경 감지 보장
-                                let request = permissionViewModel.requestsBySessionId[session.id]
+                                // 직접 딕셔너리 접근으로 SwiftUI 변경 감지 보장 (여러 요청 중 첫 번째 사용)
+                                let requests = permissionViewModel.requestsBySessionId[session.id] ?? []
+                                let request = requests.first
                                 let isRenaming = renamingSession?.id == session.id
 
                                 Button {
