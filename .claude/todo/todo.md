@@ -246,6 +246,12 @@
     - [ ] 도구 상세 정보 팝오버 추가
       - 설명: 뱃지 클릭 시 팝오버로 tool_input 상세 표시. Read/Edit는 file_path, Bash는 command 등 도구별 포맷팅
       - 비용: S
+    - [ ] Edit/Write 코드 하이라이팅 개선
+      - 설명: Edit/Write 권한 요청 시 마크다운 라이브러리(Textual)로 코드 하이라이팅할 때 기본 설정이 덮어씌워져 빨강/초록 단색으로 표시됨. Textual 스타일과 diff 색상이 충돌하지 않도록 수정 필요
+      - 비용: S
+    - [ ] Edit 권한 요청 diff 표시 개선
+      - 설명: Edit 도구의 경우 old_string/new_string 전체가 아닌 변경된 행만 표시. 글자색(빨강/초록) 대신 배경색으로 삭제(빨강 배경)/추가(초록 배경) 표시하여 가독성 향상
+      - 비용: M
 
 ## 버그
 
@@ -426,6 +432,22 @@
   - 완료일: 2026-01-19
   - 확인일: 2026-01-19
 
+- [ ] 세션 상세에서 채팅 검색 기능
+  - 설명: 세션 상세(SessionTranscriptSplitView)에서 대화 내용을 검색하는 기능. 검색창에 키워드 입력 시 해당 키워드가 포함된 메시지를 필터링하거나 하이라이트 표시
+  - 비용: M
+  - 영향도: Mid
+  - 관련 파일: `ClaudeSessionManager/Views/Session/SessionTranscriptSplitView.swift`, `ClaudeSessionManager/Views/Session/MessageBubble/MessageBubbleView.swift`
+  - 하위 항목:
+    - [ ] 검색 UI 추가 (검색창 + 네비게이션)
+      - 설명: 대화 목록 상단에 검색창 추가. Cmd+F 단축키 지원. 이전/다음 버튼으로 검색 결과 네비게이션
+      - 비용: S
+    - [ ] 검색 결과 하이라이트
+      - 설명: 검색 키워드가 포함된 메시지를 하이라이트 표시. 현재 선택된 검색 결과는 더 강조
+      - 비용: S
+    - [ ] 검색 결과 필터링/점프
+      - 설명: 검색 결과 개수 표시 (예: "3/15"). 이전/다음 버튼 또는 Enter/Shift+Enter로 검색 결과 간 이동. 해당 메시지로 자동 스크롤
+      - 비용: M
+
 ## 앱 구조
 
 - [x] 사이드바 탭 그룹 추가
@@ -505,3 +527,28 @@
       - 설명: Stop 훅 시 transcript.jsonl 파싱 의존도 검토. 훅 페이로드 정보만 사용하거나 아카이빙을 선택적 기능으로 분리 가능성 검토
       - 비용: L (구조 변경 시)
       - 관련 파일: `TranscriptArchiveService.swift`, `HookRunner.swift`
+
+## SubAgent 추적
+
+- [ ] SubAgent 추적 지원 기능
+  - 설명: Claude Code의 Task 도구로 생성되는 subAgent(하위 에이전트)를 추적하고 시각화. subAgent 메시지 구분, 토큰 집계, 생명주기 추적, 계층 구조 시각화 지원
+  - 비용: L (하위 합산)
+  - 영향도: High
+  - 관련 파일: `TranscriptEntry.swift`, `TranscriptArchiveService.swift`, `MessageBubbleView.swift`, `HookRunner.swift`
+  - 하위 항목:
+    - [ ] 트랜스크립트에서 subAgent 메시지 구분 표시
+      - 설명: transcript.jsonl의 subAgent 관련 필드(parent_session_id, subagent_type 등) 파싱. TranscriptEntry에 subAgent 정보 필드 추가. UI에서 들여쓰기/배경색으로 메인 에이전트와 구분 표시
+      - 비용: M
+      - 관련 파일: `TranscriptEntry.swift`, `TranscriptArchiveService.swift`, `MessageBubbleView.swift`
+    - [ ] subAgent별 토큰 사용량 분리 집계
+      - 설명: 메인 에이전트와 각 subAgent의 토큰 사용량을 별도로 추적. TokenUsage에 subAgent 구분 추가. 통계 뷰에서 메인/subAgent별 비용 표시
+      - 비용: M
+      - 관련 파일: `TokenUsage.swift`, `TranscriptFilter.swift`, `StatisticsService.swift`
+    - [ ] subAgent 시작/종료 이벤트 표시
+      - 설명: SubagentStop 훅 활용하여 subAgent 생명주기 추적. 트랜스크립트에 "subAgent 시작: Explore", "subAgent 종료" 등 이벤트 표시. 실행 시간, 결과 요약 포함
+      - 비용: M
+      - 관련 파일: `HookRunner.swift`, `TranscriptEntry.swift`, `MessageBubbleView.swift`
+    - [ ] subAgent 계층 구조 시각화
+      - 설명: 중첩된 subAgent(subAgent가 subAgent 호출) 관계를 트리 형태로 시각화. 접기/펼치기 지원. 각 노드에 에이전트 타입, 상태, 토큰 사용량 표시
+      - 비용: L
+      - 관련 파일: `SessionTranscriptSplitView.swift`, 신규 `SubAgentTreeView.swift`
