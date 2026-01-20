@@ -357,36 +357,6 @@ enum PermissionRequestStore {
             deliverImmediately: true
         )
     }
-
-    // MARK: - Cleanup
-
-    /// 만료된 요청/응답 정리 (기본 24시간 후 삭제)
-    static func cleanupExpiredFiles(timeout: TimeInterval = 86400) {
-        let fm = FileManager.default
-        let now = Date().timeIntervalSince1970
-
-        // 만료된 요청 삭제
-        if let files = try? fm.contentsOfDirectory(at: pendingDirectory, includingPropertiesForKeys: nil) {
-            for file in files where file.pathExtension == "json" {
-                if let data = try? Data(contentsOf: file),
-                   let request = try? JSONDecoder().decode(PermissionRequest.self, from: data),
-                   now - request.createdAt > timeout {
-                    try? fm.removeItem(at: file)
-                }
-            }
-        }
-
-        // 만료된 응답 삭제
-        if let files = try? fm.contentsOfDirectory(at: responseDirectory, includingPropertiesForKeys: nil) {
-            for file in files where file.pathExtension == "json" {
-                if let data = try? Data(contentsOf: file),
-                   let response = try? JSONDecoder().decode(PermissionResponse.self, from: data),
-                   now - response.respondedAt > timeout {
-                    try? fm.removeItem(at: file)
-                }
-            }
-        }
-    }
 }
 
 // MARK: - Hook Response Formatter
@@ -415,12 +385,6 @@ extension PermissionRequestStore {
             ]
         ]
 
-        return try? JSONSerialization.data(withJSONObject: response, options: [])
-    }
-
-    /// 기존 allow 응답 (fallback용)
-    static func formatLegacyAllowResponse() -> Data? {
-        let response = ["allow": true]
         return try? JSONSerialization.data(withJSONObject: response, options: [])
     }
 }
